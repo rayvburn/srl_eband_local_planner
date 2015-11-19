@@ -2,7 +2,7 @@
  *
  * Software License Agreement (BSD License)
  *
- *  Copyright (c) 2010, Willow Garage, Inc.
+ *  Copyright (c) 2015, University of Freiburg
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -32,12 +32,12 @@
  *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- * Author: Christian Connette
+ * Author: Luigi Palmieri
  *********************************************************************/
 
-#include <eband_local_planner/conversions_and_types.h>
+#include <srl_eband_local_planner/conversions_and_types.h>
 
-namespace eband_local_planner{
+namespace srl_eband_local_planner{
 
   void PoseToPose2D(const geometry_msgs::Pose pose, geometry_msgs::Pose2D& pose2D)
   {
@@ -86,8 +86,8 @@ namespace eband_local_planner{
   }
 
 
-  bool transformGlobalPlan(const tf::TransformListener& tf, const std::vector<geometry_msgs::PoseStamped>& global_plan, 
-      costmap_2d::Costmap2DROS& costmap, const std::string& global_frame, 
+  bool transformGlobalPlan(const tf::TransformListener& tf, const std::vector<geometry_msgs::PoseStamped>& global_plan,
+      costmap_2d::Costmap2DROS& costmap, const std::string& global_frame,
       std::vector<geometry_msgs::PoseStamped>& transformed_plan, std::vector<int>& start_end_counts)
   {
     const geometry_msgs::PoseStamped& plan_pose = global_plan[0];
@@ -104,7 +104,7 @@ namespace eband_local_planner{
       }
 
       tf::StampedTransform transform;
-      tf.lookupTransform(global_frame, ros::Time(), plan_pose.header.frame_id, plan_pose.header.stamp, 
+      tf.lookupTransform(global_frame, ros::Time(), plan_pose.header.frame_id, plan_pose.header.stamp,
           plan_pose.header.frame_id, transform);
 
       //let's get the pose of the robot in the frame of the plan

@@ -1,0 +1,13 @@
+
+<launch>
+  
+    <node pkg="move_base" type="move_base" name="move_base_node" output="screen" clear_params="true">
+
+
+        <param name="base_global_planner" value="navfn/NavfnROS" /> 
+        <param name="base_local_planner" value="srl_eband_local_planner/SrlEBandPlannerROS" />
+        <rosparam file="$(find srl_eband_local_planner)/config/srl_eband_local_planner_params.yaml" command="load" ns="SrlEBandPlannerROS"/>
+
+
+    </node>
+</launch>

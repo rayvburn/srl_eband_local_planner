@@ -1,8 +1,7 @@
-# http://ros.org/doc/groovy/api/catkin/html/user_guide/supposed.html
 cmake_minimum_required(VERSION 2.8.3)
-project(eband_local_planner)
-
-find_package(catkin REQUIRED 
+project(srl_eband_local_planner)
+set(CMAKE_BUILD_TYPE Debug)
+find_package(catkin REQUIRED
   COMPONENTS
     base_local_planner
     cmake_modules
@@ -37,30 +36,32 @@ catkin_package(
     tf
     tf_conversions
   INCLUDE_DIRS include
-  LIBRARIES eband_local_planner
+  LIBRARIES srl_eband_local_planner
 )
 
 # build the library
-add_library(eband_local_planner 
-  src/eband_local_planner_ros.cpp 
-  src/eband_local_planner.cpp 
-  src/conversions_and_types.cpp 
-  src/eband_visualization.cpp 
-  src/eband_trajectory_controller.cpp
+add_library(srl_eband_local_planner
+  src/srl_eband_local_planner_ros.cpp
+  src/srl_eband_local_planner.cpp
+  src/conversions_and_types.cpp
+  src/srl_eband_visualization.cpp
+  src/srl_eband_trajectory_controller.cpp
 )
 
-target_link_libraries(eband_local_planner ${catkin_LIBRARIES})
+target_link_libraries(srl_eband_local_planner ${catkin_LIBRARIES})
 
 install(
-  DIRECTORY include/eband_local_planner/
-  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-)
-
-install(
-  TARGETS eband_local_planner
+  TARGETS srl_eband_local_planner
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 )
+
 install(
-  FILES elp_plugin.xml
+  FILES srl_eband_local_planner_plugin.xml
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
+
+
+install(DIRECTORY include/${PROJECT_NAME}/
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+  PATTERN ".svn" EXCLUDE
 )

@@ -1,24 +1,16 @@
 <package>
-  <name>eband_local_planner</name>
+  <name>srl_eband_local_planner</name>
   <version>0.3.0</version>
   <description>
-    eband_local_planner implements a plugin to the
+    srl_eband_local_planner implements a plugin to the
     base_local_planner. It implements the Elastic Band method on the
     SE2 manifold.
   </description>
 
-  <maintainer email="piyushk@gmail.com">Piyush Khandelwal</maintainer>
-  <maintainer email="jack.oquin@gmail.com">Jack O'Quin</maintainer>
+  <maintainer email="palmieri@cs.uni-freiburg.de">Palmieri Luigi</maintainer>
+
 
   <license>BSD</license>
-
-  <url type="website">http://ros.org/wiki/eband_local_planner</url>
-  <url type="repository">https://github.com/utexas-bwi/eband_local_planner</url>
-  <url type="bugtracker">https://github.com/utexas-bwi/eband_local_planner/issues</url>
-
-  <author>Christian Connette</author>
-  <author>Bhaskara Marthi</author>
-  <author>Piyush Khandelwal</author>
 
   <buildtool_depend>catkin</buildtool_depend>
 
@@ -46,7 +38,7 @@
   <run_depend>tf_conversions</run_depend>
 
   <export>
-    <nav_core plugin="${prefix}/elp_plugin.xml"/>
+    <nav_core plugin="${prefix}/srl_eband_local_planner_plugin.xml"/>
   </export>
 
 </package>
