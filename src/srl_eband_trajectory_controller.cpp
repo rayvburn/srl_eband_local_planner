@@ -521,8 +521,8 @@ namespace srl_eband_local_planner{
 
       if(smoothed_eband_){
 
-        err_y = -( plan_[ind_band].pose.position.y -(y_curr_+b_*sin(theta_curr_)));
-        err_x = -( plan_[ind_band].pose.position.x -(x_curr_+b_*cos(theta_curr_)));
+        err_y = ( plan_[ind_band].pose.position.y -(y_curr_+b_*sin(theta_curr_)));
+        err_x = ( plan_[ind_band].pose.position.x -(x_curr_+b_*cos(theta_curr_)));
 
         vx_feed = dx_d_[ind_band];
         vy_feed = dy_d_[ind_band];
