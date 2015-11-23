@@ -609,7 +609,7 @@ namespace srl_eband_local_planner{
       }
 
       double linear_velocity = feedback_v;
-      // linear_velocity *= cos(bubble_diff.angular.z); //decrease while turning
+      linear_velocity *= cos(bubble_diff.angular.z); //decrease while turning
       if (fabs(linear_velocity) > max_vel_lin_) {
           linear_velocity = forward_sign * max_vel_lin_;
       } else if (fabs(linear_velocity) < min_vel_lin_) {
