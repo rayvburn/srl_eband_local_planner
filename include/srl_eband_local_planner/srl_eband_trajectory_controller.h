@@ -58,6 +58,9 @@
 #include <angles/angles.h>
 #include <tf/tf.h>
 
+
+#include <srl_eband_local_planner/srlEBandLocalPlannerConfig.h>
+
 // PID control library
 #include <control_toolbox/pid.h>
 
@@ -145,12 +148,23 @@ namespace srl_eband_local_planner{
        */
       double set_angle_to_range(double alpha, double min);
 
-
-
       /**
        * @brief transformPose, trasform pose to the planner frame
        */
       geometry_msgs::PoseStamped transformPose(geometry_msgs::PoseStamped init_pose);
+
+      /**
+       * @brief checkAccelerationBounds, set the twist so to respect acceleration bounds
+       * @param twist_cmd, initial Twist command
+       * @return the scaled velocity
+       */
+      geometry_msgs::Twist checkAccelerationBounds(geometry_msgs::Twist twist_cmd);
+
+
+      /**
+       * @brief callbackDynamicReconfigure, Changes the dynamic parameters
+       */
+      void callbackDynamicReconfigure(srl_eband_local_planner::srlEBandLocalPlannerConfig &config, uint32_t level);
 
     private:
 
@@ -158,10 +172,12 @@ namespace srl_eband_local_planner{
       costmap_2d::Costmap2DROS* costmap_ros_; ///<@brief pointer to costmap
       boost::shared_ptr<SrlEBandVisualization> target_visual_; // pointer to visualization object
 
+      dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig> *dr_server_;
+
       control_toolbox::Pid pid_;
 
       // parameters
-      bool differential_drive_hack_;
+      bool differential_drive_on_;
       double k_p_, k_nu_, k_int_, k_diff_, ctrl_freq_;
       double acc_max_, virt_mass_;
       double max_vel_lin_, max_vel_th_, min_vel_lin_, min_vel_th_;
@@ -176,6 +192,14 @@ namespace srl_eband_local_planner{
       double rotation_threshold_multiplier_;
       bool disallow_hysteresis_;
       bool in_final_goal_turn_;
+      bool initial_turn_;
+
+      bool initial_band_;
+      double x_initial_band_;
+      double y_initial_band_;
+      double theta_initial_band_;
+      double rot_stopping_turn_on_the_spot_;
+
 
       // flags
       bool initialized_, band_set_, visualization_;

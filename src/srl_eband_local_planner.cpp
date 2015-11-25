@@ -58,6 +58,29 @@ namespace srl_eband_local_planner{
   }
 
 
+  /// =======================================================================================
+  /// callbackDynamicReconfigure
+  /// =======================================================================================
+  void SrlEBandPlanner::callbackDynamicReconfigure(srl_eband_local_planner::srlEBandLocalPlannerConfig &config, uint32_t level ){
+
+    ROS_DEBUG("Reconfiguring Eband Planner");
+
+
+    min_bubble_overlap_ = config.eband_min_relative_bubble_overlap;
+    tiny_bubble_distance_ = config.eband_tiny_bubble_distance;
+    tiny_bubble_expansion_ = config.eband_tiny_bubble_expansion;
+    internal_force_gain_ = config.eband_internal_force_gain;
+    external_force_gain_ = config.eband_external_force_gain;
+    num_optim_iterations_ = config.num_iterations_eband_optimization;
+    max_recursion_depth_approx_equi_ = config.eband_equilibrium_approx_max_recursion_depth;
+    equilibrium_relative_overshoot_ = config.eband_equilibrium_relative_overshoot;
+    significant_force_= config.eband_significant_force_lower_bound;
+
+    return;
+
+  }
+
+
   void SrlEBandPlanner::initialize(std::string name, costmap_2d::Costmap2DROS* costmap_ros)
   {
     // check if the plugin is already initialized
@@ -108,6 +131,16 @@ namespace srl_eband_local_planner{
 
       // set flag whether visualization availlable to false by default
       visualization_ = false;
+
+      dr_server_ = new dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig>(pn);
+
+      dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig>::CallbackType cb = boost::bind(
+        &SrlEBandPlanner::callbackDynamicReconfigure, this, _1, _2);
+
+      dr_server_->setCallback(cb);
+
+     globalPlannerNav.initialize("globlalPlannerNav_repairing", costmap_ros_);
+
     }
     else
     {
@@ -121,6 +154,191 @@ namespace srl_eband_local_planner{
 
     visualization_ = true;
   }
+
+
+  int SrlEBandPlanner::findClosestObstacle(geometry_msgs::PoseStamped pose, double &min_dist){
+
+    int n_obstacles = obstacles_points_.size();
+
+    min_dist = 100;
+    int min_i = -1;
+
+    double xp = pose.pose.position.x;
+    double yp = pose.pose.position.y;
+    double curr_dist;
+    for(int i=0; i<n_obstacles; i++){
+
+      curr_dist=sqrt((obstacles_points_.at(i).pose.position.x -xp)*(obstacles_points_.at(i).pose.position.x - xp) + (obstacles_points_.at(i).pose.position.y - yp)*(obstacles_points_.at(i).pose.position.y -yp));
+      if(curr_dist<min_dist){
+        min_dist = curr_dist;
+        min_i = i;
+      }
+    }
+
+    return min_i;
+
+  }
+
+
+
+  bool SrlEBandPlanner::repairStripPlan(std::vector<geometry_msgs::PoseStamped> global_plan, std::vector<geometry_msgs::PoseStamped> &repaired_global_plan){
+
+
+
+    ROS_WARN("Conversion from plan to elastic band failed. Plan probably not collision free. Plan not set for optimization");
+    ROS_WARN("Locally repairing it..");
+    geometry_msgs::PoseStamped start = global_plan.front();
+    geometry_msgs::PoseStamped goal = global_plan.back();
+
+    int size_original_path = global_plan.size();
+
+    bool res = false;
+    int tentatives = 0;
+    double initial_start_x = start.pose.position.x;
+    double initial_start_y = start.pose.position.y;
+    double initial_goal_y = goal.pose.position.y;
+    double initial_goal_x = goal.pose.position.x;
+
+    double dist_i;
+
+    obstacles_points_.clear();
+    //1.0 Finding obstacle points into the path
+    int i = 0;
+    while( i < size_original_path){
+      // if in error move point
+      geometry_msgs::PoseStamped pose = global_plan.at(i);
+      geometry_msgs::Pose pose_i = pose.pose;
+      if(!calcObstacleKinematicDistance(pose_i, dist_i)){
+
+        obstacles_points_.push_back(pose);
+      }
+
+      i++;
+
+    }
+
+    //2.0 Apply the Elastic Force to avoid the obstacles
+    double dist_safe = 0.60;
+    double repulsion_gain = 1.5;
+
+
+    for(int j=0; j<size_original_path; j++){
+      geometry_msgs::PoseStamped pose_j = global_plan.at(j);
+      double dist_j;
+      int obst = findClosestObstacle(pose_j,dist_j);
+
+
+    }
+
+
+    return res;
+
+
+
+  }
+
+bool SrlEBandPlanner::repairPlan(std::vector<geometry_msgs::PoseStamped> global_plan, std::vector<geometry_msgs::PoseStamped> &repaired_global_plan){
+
+
+
+  ROS_WARN("Conversion from plan to elastic band failed. Plan probably not collision free. Plan not set for optimization");
+  // TODO try to do local repairs of band
+  ROS_WARN("Locally repairing it..");
+  geometry_msgs::PoseStamped start = global_plan.front();
+  geometry_msgs::PoseStamped goal = global_plan.back();
+
+  bool res = false;
+  int tentatives = 0;
+  double initial_start_x = start.pose.position.x;
+  double initial_start_y = start.pose.position.y;
+  double initial_goal_y = goal.pose.position.y;
+  double initial_goal_x = goal.pose.position.x;
+
+  double dist_start_goal = sqrt((initial_goal_x - initial_start_x)*(initial_goal_x - initial_start_x) + (initial_goal_y - initial_start_y)*(initial_goal_y - initial_start_y));
+  int N_tentatives = 9;
+  double bias_dist = 0.5;
+
+  /// 1.0 try to reduce the tollerance and changing goal pose
+  while(!res && tentatives<N_tentatives){
+
+    tentatives++;
+    ROS_DEBUG("Repairing current Tollerance %f", dist_start_goal*((double)tentatives/(double)N_tentatives));
+    ROS_DEBUG("Goal set to %f %f", goal.pose.position.x, goal.pose.position.y);
+
+    res = globalPlannerNav.makePlan(start, goal, dist_start_goal*((double)tentatives/(double)N_tentatives), repaired_global_plan);
+
+
+    if(tentatives == 1){
+      goal.pose.position.x = initial_goal_x + bias_dist;
+      goal.pose.position.y = initial_goal_y;
+    }
+
+    if(tentatives == 2){
+
+      goal.pose.position.x = initial_goal_x ;
+      goal.pose.position.y = initial_goal_y + bias_dist;
+
+    }
+
+
+    if(tentatives == 3){
+      goal.pose.position.x = initial_goal_x ;
+      goal.pose.position.y = initial_goal_y - bias_dist;
+    }
+
+
+    if(tentatives == 4){
+              goal.pose.position.x = initial_goal_x - bias_dist;
+              goal.pose.position.y = initial_goal_y;
+    }
+
+
+    if(tentatives == 5){
+              goal.pose.position.x = initial_goal_x - bias_dist;
+              goal.pose.position.y = initial_goal_y - bias_dist;
+    }
+
+
+    if(tentatives == 6){
+              goal.pose.position.x = initial_goal_x + bias_dist;
+              goal.pose.position.y = initial_goal_y - bias_dist;
+    }
+
+    if(tentatives == 7){
+              goal.pose.position.x = initial_goal_x - bias_dist;
+              goal.pose.position.y = initial_goal_y + bias_dist;
+    }
+
+    if(tentatives == 8){
+              goal.pose.position.x = initial_goal_x + bias_dist;
+              goal.pose.position.y = initial_goal_y + bias_dist;
+    }
+
+
+  }
+
+  if(!res){
+    ROS_DEBUG("Trying to repair, considering a very close goal");
+    /// 2.0 try to select goal only a few points ahaed from the start
+    int size_global_plan = global_plan.size();
+    if(size_global_plan>3){
+      geometry_msgs::PoseStamped goal = global_plan.at(2);
+      res = globalPlannerNav.makePlan(start, goal, repaired_global_plan);
+    }
+    else if(size_global_plan>2)
+     geometry_msgs::PoseStamped goal = global_plan.at(1);
+     res = globalPlannerNav.makePlan(start, goal, repaired_global_plan);
+
+  }
+
+  return res;
+
+
+}
+
+
+
+
 
 
   bool SrlEBandPlanner::setPlan(const std::vector<geometry_msgs::PoseStamped>& global_plan)
@@ -156,9 +374,18 @@ namespace srl_eband_local_planner{
     ROS_DEBUG("Converting Plan to Band");
     if(!convertPlanToBand(global_plan_, elastic_band_))
     {
-      ROS_WARN("Conversion from plan to elastic band failed. Plan probably not collision free. Plan not set for optimization");
-      // TODO try to do local repairs of band
-      return false;
+      std::vector<geometry_msgs::PoseStamped> repaired_global_plan;
+      bool res = repairPlan(global_plan_, repaired_global_plan);
+
+      if(res){
+           if(!convertPlanToBand(repaired_global_plan, elastic_band_)){
+             ROS_ERROR("Failed to convert the repaired path in elastic band");
+             return false;
+           }
+      }else{
+        ROS_ERROR("Local repairing didn't work out!");
+        return false;
+      }
     }
 
 
@@ -261,6 +488,18 @@ namespace srl_eband_local_planner{
     std::vector<Bubble> band_to_add;
     if(!convertPlanToBand(plan_to_add, band_to_add))
     {
+      std::vector<geometry_msgs::PoseStamped> repaired_global_plan;
+      bool res = repairPlan(plan_to_add, repaired_global_plan);
+
+      if(res){
+           if(!convertPlanToBand(repaired_global_plan, band_to_add)){
+             ROS_ERROR("Failed to convert the repaired path while adding elastic band");
+             return false;
+           }
+      }else{
+        ROS_ERROR("Local repairing didn't work out!");
+        return false;
+      }
       ROS_DEBUG("Conversion from plan to elastic band failed. Plan not appended");
       // TODO try to do local repairs of band
       return false;
@@ -1878,15 +2117,25 @@ namespace srl_eband_local_planner{
       // calc Size of Bubbles by calculating Dist to nearest Obstacle [depends kinematic, environment]
       if(!calcObstacleKinematicDistance(tmp_band[i].center.pose, distance))
       {
-        // frame must not be immediately in collision -> otherwise calculation of gradient will later be invalid
-        ROS_WARN("Calculation of Distance between bubble and nearest obstacle failed. Frame %d of %d outside map", i, ((int) plan.size()) );
-        return false;
+        if((i+1)<(int)plan.size()) // smoothing..
+        {
+          if(!calcObstacleKinematicDistance(tmp_band[i+1].center.pose, distance)){
+            // frame must not be immediately in collision -> otherwise calculation of gradient will later be invalid
+            ROS_WARN("Calculation of Distance  (%f) between bubble and nearest obstacle failed. Frame %d of %d outside map", distance, i, ((int) plan.size()) );
+            return false;
+          }
+        }else{
+
+
+          ROS_WARN("Calculation of Distance  (%f) between bubble and nearest obstacle failed. Frame %d of %d outside map", distance, i, ((int) plan.size()) );
+          return false;
+        }
       }
 
       if(distance <= 0.0)
       {
         // frame must not be immediately in collision -> otherwise calculation of gradient will later be invalid
-        ROS_WARN("Calculation of Distance between bubble and nearest obstacle failed. Frame %d of %d in collision. Plan invalid", i, ((int) plan.size()) );
+        ROS_WARN("Calculation of Distance (%f) between bubble and nearest obstacle failed. Frame %d of %d in collision. Plan invalid", distance, i, ((int) plan.size()) );
         // TODO if frame in collision try to repair band instaed of aborting averything
         return false;
       }

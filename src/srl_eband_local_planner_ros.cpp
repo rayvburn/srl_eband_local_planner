@@ -168,7 +168,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       {
         // We've had some difficulty where the global planner keeps returning a valid path that runs through an obstacle
         // in the local costmap. See issue #5. Here we clear the local costmap and try one more time.
-        costmap_ros_->resetLayers();
+        // costmap_ros_->resetLayers();
         if (!eband_->setPlan(transformed_plan_)) {
           ROS_ERROR("Setting plan to Elastic Band method failed!");
           return false;
@@ -312,6 +312,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       }
 
       // set Odometry to controller
+      ROS_DEBUG("set Odometry to controller");
       if(!eband_trj_ctrl_->setOdometry(base_odom_))
       {
         ROS_DEBUG("Failed to to set current odometry to Trajectory Controller");
@@ -319,6 +320,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       }
 
       // get resulting commands from the controller
+      ROS_DEBUG("get resulting commands from the controller");
       geometry_msgs::Twist cmd_twist;
       if(!eband_trj_ctrl_->getTwist(cmd_twist, goal_reached_))
       {
@@ -333,6 +335,8 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
 
 
       // publish plan
+      ROS_DEBUG("publish plan");
+
       std::vector<geometry_msgs::PoseStamped> refined_plan;
       if(eband_->getPlan(refined_plan))
         // TODO publish local and current gloabl plan
@@ -358,26 +362,6 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
 
       return goal_reached_;
 
-      // // copy odometry information to local variable
-      // nav_msgs::Odometry base_odom;
-      // {
-      // 	// make sure we do not read new date from topic right at the moment
-      // 	boost::mutex::scoped_lock lock(odom_mutex_);
-      // 	base_odom = base_odom_;
-      // }
-
-      // tf::Stamped<tf::Pose> global_pose;
-      // costmap_ros_->getRobotPose(global_pose);
-
-      // // analogous to dwa_planner the actual check uses the routine implemented in trajectory_planner (trajectory rollout)
-      // bool is_goal_reached = base_local_planner::isGoalReached(
-      //     *tf_, global_plan_, *(costmap_ros_->getCostmap()),
-      //     costmap_ros_->getGlobalFrameID(), global_pose, base_odom,
-      // 		rot_stopped_vel_, trans_stopped_vel_, xy_goal_tolerance_,
-      //     yaw_goal_tolerance_
-      // );
-
-      // return is_goal_reached;
 
     }
 

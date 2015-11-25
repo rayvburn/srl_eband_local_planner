@@ -68,6 +68,10 @@
 
 // boost classes
 #include <boost/shared_ptr.hpp>
+#include <srl_eband_local_planner/srlEBandLocalPlannerConfig.h>
+
+
+#include <global_planner/planner_core.h>
 
 namespace srl_eband_local_planner{
 
@@ -149,9 +153,25 @@ namespace srl_eband_local_planner{
        */
       bool optimizeBand(std::vector<Bubble>& band);
 
+
+      /**
+       * @brief Repair the global plan
+       * @param global_plan The plan which shall be optimized
+       * @return True if the plan was set successfully
+       */
+      bool repairPlan(std::vector<geometry_msgs::PoseStamped> global_plan, std::vector<geometry_msgs::PoseStamped> &repaired_global_plan);
+
+
+      void callbackDynamicReconfigure(srl_eband_local_planner::srlEBandLocalPlannerConfig &config, uint32_t level);
+
+      int findClosestObstacle(geometry_msgs::PoseStamped pose, double &min_dist);
+
+      bool repairStripPlan(std::vector<geometry_msgs::PoseStamped> global_plan, std::vector<geometry_msgs::PoseStamped> &repaired_global_plan);
+
     private:
       // pointer to external objects (do NOT delete object)
       costmap_2d::Costmap2DROS* costmap_ros_; ///<@brief pointer to costmap
+      dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig> *dr_server_;
 
       // parameters
       std::vector<double> acc_lim_; ///<@brief acceleration limits for translational and rotational motion
@@ -169,6 +189,8 @@ namespace srl_eband_local_planner{
       // pointer to locally created objects (delete - except for smart-ptrs:)
       base_local_planner::CostmapModel* world_model_; // local world model
       boost::shared_ptr<SrlEBandVisualization> eband_visual_; // pointer to visualization object
+      global_planner::GlobalPlanner globalPlannerNav;
+      std::vector<geometry_msgs::PoseStamped> obstacles_points_;
 
       // flags
       bool initialized_, visualization_;
