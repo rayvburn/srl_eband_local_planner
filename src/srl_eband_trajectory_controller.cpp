@@ -482,9 +482,14 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
     ROS_WARN("Turning on the spot starting");
     // Storing second point of the band to turn to that direction
     if(initial_band_ == false){
-        x_initial_band_ = elastic_band_.at(1).center.pose.position.x;
-        y_initial_band_ = elastic_band_.at(1).center.pose.position.y;
-        theta_initial_band_ = tf::getYaw(elastic_band_.at(1).center.pose.orientation);
+        int index_for_direction = 1;
+
+        if(elastic_band_.size()>3)
+          index_for_direction=2;
+
+        x_initial_band_ = elastic_band_.at(index_for_direction).center.pose.position.x;
+        y_initial_band_ = elastic_band_.at(index_for_direction).center.pose.position.y;
+        theta_initial_band_ = tf::getYaw(elastic_band_.at(index_for_direction).center.pose.orientation);
         initial_band_ = true;
         ROS_WARN("Saving next point of the bubble completed");
     }
@@ -503,7 +508,7 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
     double y_rob = transform_flipped.getOrigin().y();
     tf::Quaternion qcurr_flipped = transform_flipped.getRotation();
     qcurr_flipped.normalize();
-    double robot_yaw = set_angle_to_range(tf::getYaw(qcurr_flipped), 0);
+    double robot_yaw = tf::getYaw(qcurr_flipped);
     double next_ball_yaw = theta_initial_band_;
 
     float next_orientation_diff = angles::normalize_angle(next_ball_yaw - robot_yaw);

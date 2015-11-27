@@ -169,6 +169,7 @@ namespace srl_eband_local_planner{
     for(int i=0; i<n_obstacles; i++){
 
       curr_dist=sqrt((obstacles_points_.at(i).pose.position.x -xp)*(obstacles_points_.at(i).pose.position.x - xp) + (obstacles_points_.at(i).pose.position.y - yp)*(obstacles_points_.at(i).pose.position.y -yp));
+
       if(curr_dist<min_dist){
         min_dist = curr_dist;
         min_i = i;
@@ -180,7 +181,7 @@ namespace srl_eband_local_planner{
   }
 
 
-
+  // TODO: still bugging.. a way to repair the local plan
   bool SrlEBandPlanner::repairStripPlan(std::vector<geometry_msgs::PoseStamped> global_plan, std::vector<geometry_msgs::PoseStamped> &repaired_global_plan){
 
 
@@ -191,15 +192,18 @@ namespace srl_eband_local_planner{
     geometry_msgs::PoseStamped goal = global_plan.back();
 
     int size_original_path = global_plan.size();
+    ROS_DEBUG("Original PAth size %d", size_original_path);
 
     bool res = false;
     int tentatives = 0;
-    double initial_start_x = start.pose.position.x;
-    double initial_start_y = start.pose.position.y;
-    double initial_goal_y = goal.pose.position.y;
-    double initial_goal_x = goal.pose.position.x;
 
     double dist_i;
+    double dist_safe = (costmap_ros_->getLayeredCostmap())->getInscribedRadius();
+
+    ROS_DEBUG("Inscribed radius or dist safe %f", dist_safe);
+
+    double repulsion_gain = 1.5;
+    double attractive_gain = 1.5;
 
     obstacles_points_.clear();
     //1.0 Finding obstacle points into the path
@@ -207,30 +211,120 @@ namespace srl_eband_local_planner{
     while( i < size_original_path){
       // if in error move point
       geometry_msgs::PoseStamped pose = global_plan.at(i);
-      geometry_msgs::Pose pose_i = pose.pose;
-      if(!calcObstacleKinematicDistance(pose_i, dist_i)){
+      if(calcObstacleKinematicDistance(pose.pose, dist_i)){
 
-        obstacles_points_.push_back(pose);
+        if(dist_i <= dist_safe){
+          ROS_DEBUG("Distance from the obstacle %d, dist: %f", i, dist_i);
+          obstacles_points_.push_back(pose);
+          ROS_DEBUG("Obstacle added");
+        }
+
       }
+
 
       i++;
 
     }
 
     //2.0 Apply the Elastic Force to avoid the obstacles
-    double dist_safe = 0.60;
-    double repulsion_gain = 1.5;
+    repaired_global_plan.clear();
+    ROS_DEBUG("Obstacle Points %d", obstacles_points_.size());
+    ROS_DEBUG("Looking for initial and last point to integrate poses during avoidance");
 
+    geometry_msgs::PoseStamped pose_zero;
+    geometry_msgs::PoseStamped pose_final;
+    geometry_msgs::PoseStamped pose_f;
 
-    for(int j=0; j<size_original_path; j++){
+    int next_free_index = 1;
+
+    for(int j=1; j<size_original_path; j++){
+
       geometry_msgs::PoseStamped pose_j = global_plan.at(j);
+
       double dist_j;
+
       int obst = findClosestObstacle(pose_j,dist_j);
 
+      pose_zero = global_plan.at(j-1);
+
+
+       if(dist_j < dist_safe) {
+         ROS_DEBUG("Found Closest Obstacle at dist %f, from path pose index %d", dist_j, j);
+
+         /// Find next free point
+         int h = j+1;
+         bool free_found = false;
+         next_free_index = j+1;
+
+         while(h<size_original_path && !free_found){
+
+           double dist_h;
+           calcObstacleKinematicDistance(global_plan.at(h).pose, dist_h);
+
+           if(dist_h>dist_safe){
+             ROS_DEBUG("Found next available free pose at index %d, with distance  %f", h, dist_h);
+             free_found = true;
+             pose_final = global_plan.at(h);
+             next_free_index = h;
+           }
+
+           h++;
+
+         }
+
+         double dist_to_final = 1000;
+
+         pose_f = pose_zero ;
+
+         while(dist_to_final>0.1){
+
+           // norm of the vector distance between the path point and the obstacle pose
+           double d = sqrt((obstacles_points_.at(obst).pose.position.x - pose_f.pose.position.x)*(obstacles_points_.at(obst).pose.position.x - pose_f.pose.position.x) +
+             (obstacles_points_.at(obst).pose.position.y - pose_f.pose.position.y)*(obstacles_points_.at(obst).pose.position.y - pose_f.pose.position.y));
+           ROS_ASSERT(d>0.0);
+           double fx = repulsion_gain*(dist_safe - dist_j)*(obstacles_points_.at(obst).pose.position.x - pose_f.pose.position.x)/d;
+           double fy = repulsion_gain*(dist_safe - dist_j)*(obstacles_points_.at(obst).pose.position.y - pose_f.pose.position.y)/d;
+           double dx_to_final =  pose_f.pose.position.x - pose_final.pose.position.x;
+           double dy_to_final = pose_f.pose.position.y - pose_final.pose.position.y;
+           double f_a_x = attractive_gain*dx_to_final;
+           double f_a_y = attractive_gain*dy_to_final;
+
+           dist_to_final = sqrt(dx_to_final*dx_to_final + dy_to_final*dy_to_final);
+
+           if(dist_to_final>100.0 || dist_to_final<-100.0){
+             exit(0);
+           }
+
+           // Integrating
+           pose_f.pose.position.x = (pose_f.pose.position.x + fx + f_a_x);
+           pose_f.pose.position.y = (pose_f.pose.position.y + fy + f_a_y);
+
+           repaired_global_plan.push_back(pose_f);
+
+           ROS_DEBUG("Obstacle Forces %f %f", fx, fy);
+           ROS_DEBUG("Attractive Forces %f %f", f_a_x, f_a_y);
+           ROS_DEBUG("Distance to the next free pose %f", dist_to_final);
+
+        }
+
+        // continuing from the last free
+        ROS_DEBUG("continuing from the last free, index %d ", next_free_index);
+        j = next_free_index;
+
+       }
+       else{
+
+         repaired_global_plan.push_back(pose_j);
+
+
+       }
 
     }
 
 
+
+
+    res = true;
     return res;
 
 
@@ -376,6 +470,9 @@ bool SrlEBandPlanner::repairPlan(std::vector<geometry_msgs::PoseStamped> global_
     {
       std::vector<geometry_msgs::PoseStamped> repaired_global_plan;
       bool res = repairPlan(global_plan_, repaired_global_plan);
+      // bool res = repairStripPlan(global_plan_, repaired_global_plan);
+      // eband_visual_->publishRepairedPath(repaired_global_plan);
+
 
       if(res){
            if(!convertPlanToBand(repaired_global_plan, elastic_band_)){
@@ -490,6 +587,8 @@ bool SrlEBandPlanner::repairPlan(std::vector<geometry_msgs::PoseStamped> global_
     {
       std::vector<geometry_msgs::PoseStamped> repaired_global_plan;
       bool res = repairPlan(plan_to_add, repaired_global_plan);
+      // bool res = repairStripPlan(plan_to_add, repaired_global_plan);
+      // eband_visual_->publishRepairedPath(repaired_global_plan);
 
       if(res){
            if(!convertPlanToBand(repaired_global_plan, band_to_add)){

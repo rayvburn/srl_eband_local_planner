@@ -98,6 +98,7 @@ namespace srl_eband_local_planner{
        */
       ~SrlEBandVisualization();
 
+      void publishRepairedPath(std::vector<geometry_msgs::PoseStamped> path);
       /**
        * @brief Initializes the visualization class
        * @param name The name to give this instance (important for publishing)
@@ -154,7 +155,7 @@ namespace srl_eband_local_planner{
       // Topics & Services
       ros::Publisher bubble_pub_; ///<@brief publishes markers to visualize bubbles of elastic band ("modified global plan")
       ros::Publisher one_bubble_pub_; ///<@brief publishes markers to visualize bubbles of elastic band ("modified global plan")
-
+      ros::Publisher repaired_path_;
       // flags
       bool initialized_;
 

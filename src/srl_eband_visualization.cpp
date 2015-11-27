@@ -67,6 +67,7 @@ namespace srl_eband_local_planner{
       // although we want to publish MarkerArrays we have to advertise Marker topic first -> rviz searchs relative to this
       bubble_pub_ = pn.advertise<visualization_msgs::MarkerArray>("eband_visualization_array", 1);
 
+      repaired_path_= pn.advertise<visualization_msgs::Marker>("repaired_path_eband_visualization_array", 1);
       // copy adress of costmap and Transform Listener (handed over from move_base) -> to get robot shape
       costmap_ros_ = costmap_ros;
 
@@ -76,6 +77,58 @@ namespace srl_eband_local_planner{
     {
       ROS_WARN("Trying to initialize already initialized visualization, doing nothing.");
     }
+  }
+
+
+  void SrlEBandVisualization::publishRepairedPath(std::vector<geometry_msgs::PoseStamped> path)
+  {
+
+    // check if visualization was initialized
+    if(!initialized_)
+    {
+      ROS_ERROR("Visualization not yet initialized, please call initialize() before using visualization");
+      return;
+    }
+
+    visualization_msgs::Marker path_marker_;
+
+
+    path_marker_.header.frame_id = "odom";
+    path_marker_.header.stamp = ros::Time();
+    path_marker_.ns = "srl_eband_local_planner";
+    path_marker_.id = 1;
+
+    path_marker_.type = visualization_msgs::Marker::POINTS;
+    path_marker_.color.a = 1;
+    path_marker_.color.r = 0.0;
+    path_marker_.color.g = 0.0;
+    path_marker_.color.b = 1.0;
+
+    path_marker_.scale.x = 0.1;
+    path_marker_.scale.y = 0.1;
+    path_marker_.scale.z = 0.1;
+
+
+    path_marker_.action = 0;  // add or modify
+
+    int npoints = path.size();
+    ROS_INFO("Publishing path of size %d", npoints);
+    for (int i=0; i<npoints; i++) {
+
+        geometry_msgs::PoseStamped pose = path.at(i);
+        geometry_msgs::Point p;
+        p.x = pose.pose.position.x;
+        p.y = pose.pose.position.y;
+        p.z = 0.5;
+
+        path_marker_.points.push_back(p);
+
+    }
+
+
+    repaired_path_.publish(path_marker_);
+
+
   }
 
 

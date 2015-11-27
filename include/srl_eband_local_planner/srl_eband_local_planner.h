@@ -38,7 +38,7 @@
 #ifndef SRL_EBAND_LOCAL_PLANNER_H_
 #define SRL_EBAND_LOCAL_PLANNER_H_
 
-//#define DEBUG_EBAND_ // uncomment to enable additional publishing, visualization and logouts for debug
+// #define DEBUG_EBAND_ // uncomment to enable additional publishing, visualization and logouts for debug
 
 #include <ros/ros.h>
 #include <ros/assert.h>
