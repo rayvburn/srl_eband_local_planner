@@ -37,7 +37,6 @@
 
 #include <srl_eband_local_planner/srl_eband_trajectory_controller.h>
 #include <tf/transform_datatypes.h>
-#include <dynamic_reconfigure/server.h>
 /// these are platform dependent, we could set them as params
 #define TRANS_VEL_ABS_LIMIT  1.1
 #define ROT_VEL_ABS_LIMIT 1.57;
@@ -68,6 +67,7 @@ SrlEBandTrajectoryCtrl::~SrlEBandTrajectoryCtrl() {
 
 }
 
+
 /// =======================================================================================
 /// callbackDynamicReconfigure
 /// =======================================================================================
@@ -75,25 +75,26 @@ void SrlEBandTrajectoryCtrl::callbackDynamicReconfigure(srl_eband_local_planner:
 
   ROS_DEBUG("Reconfiguring Eband Tracker");
 
-  tolerance_trans_ = config.xy_goal_tolerance;
-  tolerance_rot_ = config.yaw_goal_tolerance;
-  rot_stopping_turn_on_the_spot_ = config.rot_stopping_turn_on_the_spot;
-  max_vel_lin_ = config.max_vel_lin;
-  min_vel_lin_ = config.min_vel_lin;
-  acc_max_ = config.max_acceleration;
-  min_vel_th_ = config.min_vel_th;
-  max_vel_th_ = config.max_vel_th;
-  min_in_place_vel_th_ = config.min_in_place_vel_th;
-  in_place_trans_vel_ = config.in_place_trans_vel;
-  k_p_ = config.k_prop;
-  k_nu_ = config.k_damp;
-  ts_ = config.Ts;
-  k_one_ = config.Kv_one;
-  k_two_ = config.Kv_two;
-  b_ = config.B;
-  smoothed_eband_ = config.smoothed_eband;
-  acc_max_trans_ = config.max_translational_acceleration;
-  acc_max_rot_ = config.max_rotational_acceleration;
+  tolerance_trans_ = config.xy_goal_tolerance_dyn;
+  tolerance_rot_ = config.yaw_goal_tolerance_dyn;
+  rot_stopping_turn_on_the_spot_ = config.rot_stopping_turn_on_the_spot_dyn;
+  max_vel_lin_ = config.max_vel_lin_dyn;
+  ROS_WARN("New max_vel_lin %f", config.max_vel_lin_dyn);
+  min_vel_lin_ = config.min_vel_lin_dyn;
+  acc_max_ = config.max_acceleration_dyn;
+  min_vel_th_ = config.min_vel_th_dyn;
+  max_vel_th_ = config.max_vel_th_dyn;
+  min_in_place_vel_th_ = config.min_in_place_vel_th_dyn;
+  in_place_trans_vel_ = config.in_place_trans_vel_dyn;
+  k_p_ = config.k_prop_dyn;
+  k_nu_ = config.k_damp_dyn;
+  ts_ = config.Ts_dyn;
+  k_one_ = config.Kv_one_dyn;
+  k_two_ = config.Kv_two_dyn;
+  b_ = config.B_dyn;
+  smoothed_eband_ = config.smoothed_eband_dyn;
+  acc_max_trans_ = config.max_translational_acceleration_dyn;
+  acc_max_rot_ = config.max_rotational_acceleration_dyn;
 
   return;
 
@@ -189,11 +190,6 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     y_initial_band_ = 0;
     theta_initial_band_ = 0;
 
-    dr_server_ = new dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig>(node_private);
-    dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig>::CallbackType cb = boost::bind(
-      &SrlEBandTrajectoryCtrl::callbackDynamicReconfigure, this, _1, _2);
-
-    dr_server_->setCallback(cb);
 
   }
   else
@@ -489,7 +485,7 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
 
         x_initial_band_ = elastic_band_.at(index_for_direction).center.pose.position.x;
         y_initial_band_ = elastic_band_.at(index_for_direction).center.pose.position.y;
-        theta_initial_band_ = tf::getYaw(elastic_band_.at(index_for_direction).center.pose.orientation);
+        theta_initial_band_ =  angles::normalize_angle( tf::getYaw(elastic_band_.at(index_for_direction).center.pose.orientation) - tf::getYaw(elastic_band_.at(0).center.pose.orientation) );
         initial_band_ = true;
         ROS_WARN("Saving next point of the bubble completed");
     }
@@ -516,7 +512,7 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
     if (fabs(next_orientation_diff) > rot_stopping_turn_on_the_spot_) {
 
       initial_turn_ = true;
-      ROS_WARN("Performing in place rotation for initial turning on the spot (diff): %f", next_orientation_diff);
+      ROS_WARN("Performing in place rotation for initial turning on the spot (robot_yaw, next_ball_yaw, diff): (%f, %f, %f)",robot_yaw, next_ball_yaw,  next_orientation_diff);
       double rotation_sign = -2 * (next_orientation_diff < 0) + 1;
       robot_cmd.angular.z =
         rotation_sign * min_in_place_vel_th_ + k_p_ * next_orientation_diff;
@@ -575,7 +571,7 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
       float orientation_diff = angles::normalize_angle(goal_yaw - robot_yaw);
       if (fabs(orientation_diff) > tolerance_rot_) {
         in_final_goal_turn_ = true;
-        ROS_DEBUG("Performing in place rotation for goal (diff): %f", orientation_diff);
+        ROS_DEBUG("Performing in place rotation for goal (robot_yaw, goal_yaw, diff): (%f, %f, %f)",robot_yaw, goal_yaw, orientation_diff);
         double rotation_sign = -2 * (orientation_diff < 0) + 1;
         robot_cmd.angular.z =
           rotation_sign * min_in_place_vel_th_ + k_p_ * orientation_diff;
@@ -711,7 +707,7 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
 
 
     if(sig==1){
-        feedback_v = feedback_w;
+        feedback_v = feedback_v;
         feedback_w = feedback_w;
     }
 
@@ -743,11 +739,14 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
 
     double linear_velocity = feedback_v;
     linear_velocity *= cos(bubble_diff.angular.z); //decrease while turning
+
     if (fabs(linear_velocity) > max_vel_lin_) {
         linear_velocity = forward_sign * max_vel_lin_;
     } else if (fabs(linear_velocity) < min_vel_lin_) {
         linear_velocity = forward_sign * min_vel_lin_;
-  }
+
+    }else{
+    }
 
 
   // Scale velocity if it is over the thrs.

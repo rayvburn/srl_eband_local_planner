@@ -120,6 +120,14 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         // set initialized flag
         initialized_ = true;
 
+
+        dr_server_ = new dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig>(pn);
+
+        dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig>::CallbackType cb = boost::bind(
+          &SrlEBandPlannerROS::callbackDynamicReconfigure, this, _1, _2);
+
+        dr_server_->setCallback(cb);
+
         // this is only here to make this process visible in the rxlogger right from the start
         ROS_DEBUG("Elastic Band plugin initialized.");
       }
@@ -129,6 +137,19 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       }
     }
 
+
+    /// =======================================================================================
+    /// callbackDynamicReconfigure
+    /// =======================================================================================
+    void SrlEBandPlannerROS::callbackDynamicReconfigure(srl_eband_local_planner::srlEBandLocalPlannerConfig &config, uint32_t level ){
+
+      ROS_DEBUG("Reconfiguring Eband Planner");
+      srlEBandLocalPlannerConfig config_int = config;
+      eband_->callbackDynamicReconfigure(config,level);
+      eband_trj_ctrl_->callbackDynamicReconfigure(config,level);
+      return;
+
+    }
 
     // set global plan to wrapper and pass it to eband
     bool SrlEBandPlannerROS::setPlan(const std::vector<geometry_msgs::PoseStamped>& orig_global_plan)

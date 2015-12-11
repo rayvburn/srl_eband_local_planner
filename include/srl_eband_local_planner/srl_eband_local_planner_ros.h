@@ -71,6 +71,7 @@
 #include <boost/bind.hpp>
 #include <boost/shared_ptr.hpp>
 
+#include <srl_eband_local_planner/srlEBandLocalPlannerConfig.h>
 
 namespace srl_eband_local_planner{
 
@@ -129,11 +130,18 @@ namespace srl_eband_local_planner{
        */
       bool isGoalReached();
 
+
+      void callbackDynamicReconfigure(srl_eband_local_planner::srlEBandLocalPlannerConfig &config, uint32_t level);
+
+
     private:
 
       // pointer to external objects (do NOT delete object)
       costmap_2d::Costmap2DROS* costmap_ros_; ///<@brief pointer to costmap
       tf::TransformListener* tf_; ///<@brief pointer to Transform Listener
+
+      dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig> *dr_server_;
+
 
       // parameters
       double yaw_goal_tolerance_, xy_goal_tolerance_; ///<@brief parameters to define region in which goal is treated as reached

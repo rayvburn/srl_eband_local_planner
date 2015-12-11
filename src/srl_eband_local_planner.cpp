@@ -64,17 +64,17 @@ namespace srl_eband_local_planner{
   void SrlEBandPlanner::callbackDynamicReconfigure(srl_eband_local_planner::srlEBandLocalPlannerConfig &config, uint32_t level ){
 
     ROS_DEBUG("Reconfiguring Eband Planner");
+    srlEBandLocalPlannerConfig config_int = config;
 
-
-    min_bubble_overlap_ = config.eband_min_relative_bubble_overlap;
-    tiny_bubble_distance_ = config.eband_tiny_bubble_distance;
-    tiny_bubble_expansion_ = config.eband_tiny_bubble_expansion;
-    internal_force_gain_ = config.eband_internal_force_gain;
-    external_force_gain_ = config.eband_external_force_gain;
-    num_optim_iterations_ = config.num_iterations_eband_optimization;
-    max_recursion_depth_approx_equi_ = config.eband_equilibrium_approx_max_recursion_depth;
-    equilibrium_relative_overshoot_ = config.eband_equilibrium_relative_overshoot;
-    significant_force_= config.eband_significant_force_lower_bound;
+    min_bubble_overlap_ = config.eband_min_relative_bubble_overlap_dyn;
+    tiny_bubble_distance_ = config.eband_tiny_bubble_distance_dyn;
+    tiny_bubble_expansion_ = config.eband_tiny_bubble_expansion_dyn;
+    internal_force_gain_ = config.eband_internal_force_gain_dyn;
+    external_force_gain_ = config.eband_external_force_gain_dyn;
+    num_optim_iterations_ = config.num_iterations_eband_optimization_dyn;
+    max_recursion_depth_approx_equi_ = config.eband_equilibrium_approx_max_recursion_depth_dyn;
+    equilibrium_relative_overshoot_ = config.eband_equilibrium_relative_overshoot_dyn;
+    significant_force_= config.eband_significant_force_lower_bound_dyn;
 
     return;
 
@@ -131,13 +131,6 @@ namespace srl_eband_local_planner{
 
       // set flag whether visualization availlable to false by default
       visualization_ = false;
-
-      dr_server_ = new dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig>(pn);
-
-      dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig>::CallbackType cb = boost::bind(
-        &SrlEBandPlanner::callbackDynamicReconfigure, this, _1, _2);
-
-      dr_server_->setCallback(cb);
 
      globalPlannerNav.initialize("globlalPlannerNav_repairing", costmap_ros_);
 

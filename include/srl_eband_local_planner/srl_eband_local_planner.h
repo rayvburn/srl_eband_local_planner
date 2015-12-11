@@ -171,7 +171,7 @@ namespace srl_eband_local_planner{
     private:
       // pointer to external objects (do NOT delete object)
       costmap_2d::Costmap2DROS* costmap_ros_; ///<@brief pointer to costmap
-      dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig> *dr_server_;
+      // dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig> *dr_server_;
 
       // parameters
       std::vector<double> acc_lim_; ///<@brief acceleration limits for translational and rotational motion
