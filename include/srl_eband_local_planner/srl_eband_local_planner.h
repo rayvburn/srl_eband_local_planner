@@ -71,9 +71,16 @@
 #include <srl_eband_local_planner/srlEBandLocalPlannerConfig.h>
 
 
+#include <Eigen/Dense>
+typedef Eigen::VectorXd Vector;
+typedef Eigen::MatrixXd Matrix;
+typedef Eigen::Isometry3d Transform;
+
+
 #include <global_planner/planner_core.h>
 
 namespace srl_eband_local_planner{
+
 
   /**
    * @class EBandPlanner
@@ -191,6 +198,7 @@ namespace srl_eband_local_planner{
       boost::shared_ptr<SrlEBandVisualization> eband_visual_; // pointer to visualization object
       global_planner::GlobalPlanner globalPlannerNav;
       std::vector<geometry_msgs::PoseStamped> obstacles_points_;
+      ros::Publisher pub_repaired_plan_;    // WARNING: TO PUBLISH A PATH
 
       // flags
       bool initialized_, visualization_;
@@ -378,6 +386,13 @@ namespace srl_eband_local_planner{
        * @return true if path was successfully converted - band did not break
        */
       bool convertBandToPlan(std::vector<geometry_msgs::PoseStamped>& plan, std::vector<Bubble> band);
+
+
+      /**
+      * @brief publishRepairedPlan, Publish final plan
+      * @return void
+      */
+      void publishRepairedPlan(std::vector<geometry_msgs::PoseStamped>& plan);
 
   };
 };

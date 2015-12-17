@@ -43,7 +43,7 @@
 // abstract class from which our plugin inherits
 #include <nav_core/base_local_planner.h>
 
-
+#include <sfl/bband/BubbleBand.hpp>
 // register this planner as a BaseGlobalPlanner plugin
 // (see http://www.ros.org/wiki/pluginlib/Tutorials/Writing%20and%20Using%20a%20Simple%20Plugin)
 // PLUGINLIB_DECLARE_CLASS(srl_eband_local_planner, SrlEBandPlannerROS, srl_eband_local_planner::SrlEBandPlannerROS, nav_core::BaseLocalPlanner)
@@ -130,6 +130,11 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
 
         // this is only here to make this process visible in the rxlogger right from the start
         ROS_DEBUG("Elastic Band plugin initialized.");
+
+
+        ROS_WARN("Creatubg SFL2 Elastic band");
+        boost::shared_ptr<sfl::BubbleBand> bubble_band; // can be null!
+
       }
       else
       {

@@ -41,7 +41,8 @@ find_package(catkin REQUIRED
     tf_conversions
     dynamic_reconfigure
 		global_planner
-
+		sfl2
+		cmake_modules
 )
 
 find_package(Eigen REQUIRED)
@@ -70,6 +71,8 @@ catkin_package(
     tf
     tf_conversions
 		global_planner
+		sfl2
+		cmake_modules
   INCLUDE_DIRS include
   LIBRARIES srl_eband_local_planner
 )

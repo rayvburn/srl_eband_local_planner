@@ -123,6 +123,8 @@ namespace srl_eband_local_planner{
       // use this parameter if a different weight is supplied to the costmap in dyn reconfigure
       pn.param("costmap_weight", costmap_weight_, 10.0);
 
+      pub_repaired_plan_ = pn.advertise<nav_msgs::Path>("repaired_plan", 5);
+
       // clean up band
       elastic_band_.clear();
 
@@ -149,6 +151,36 @@ namespace srl_eband_local_planner{
   }
 
 
+  /// ==================================================================================
+  /// publishPlan(std::vector<geometry_msgs::PoseStamped>& plan)
+  /// publish Final plan
+  /// ==================================================================================
+  void SrlEBandPlanner::publishRepairedPlan(std::vector<geometry_msgs::PoseStamped>& plan){
+
+    /// To IMPLEMENT
+        nav_msgs::Path path_;
+        ROS_DEBUG("Publishing a path");
+        path_.header.frame_id = plan[0].header.frame_id;;
+        path_.header.stamp = ros::Time();
+        path_.poses.resize((int)plan.size());
+        for (size_t i = 0; i < plan.size(); i++) {
+            geometry_msgs::PoseStamped posei;
+            path_.poses[i].header.stamp = ros::Time();
+            path_.poses[i].header.frame_id = plan[i].header.frame_id;
+            path_.poses[i].pose = plan[i].pose;
+
+        }
+        if(plan.size()>0){
+            pub_repaired_plan_.publish(path_);
+            ROS_DEBUG("Plan Published");
+        }
+
+  }
+
+  /// ==================================================================================
+  /// findClosestObstacle(geometry_msgs::PoseStamped pose, double &min_dist)
+  /// Looking for the closest point
+  /// ==================================================================================
   int SrlEBandPlanner::findClosestObstacle(geometry_msgs::PoseStamped pose, double &min_dist){
 
     int n_obstacles = obstacles_points_.size();
@@ -173,8 +205,10 @@ namespace srl_eband_local_planner{
 
   }
 
-
-  // TODO: still bugging.. a way to repair the local plan
+  /// ==================================================================================
+  /// repairStripPlan(..)
+  /// Using CHOMP To locally repair the path
+  /// ==================================================================================
   bool SrlEBandPlanner::repairStripPlan(std::vector<geometry_msgs::PoseStamped> global_plan, std::vector<geometry_msgs::PoseStamped> &repaired_global_plan){
 
 
@@ -186,6 +220,7 @@ namespace srl_eband_local_planner{
 
     int size_original_path = global_plan.size();
     ROS_DEBUG("Original PAth size %d", size_original_path);
+
 
     bool res = false;
     int tentatives = 0;
@@ -201,6 +236,9 @@ namespace srl_eband_local_planner{
     obstacles_points_.clear();
     //1.0 Finding obstacle points into the path
     int i = 0;
+
+    /// TODO: It could be possible to have an array of all the obstacles read from The
+    /// costmap
     while( i < size_original_path){
       // if in error move point
       geometry_msgs::PoseStamped pose = global_plan.at(i);
@@ -211,13 +249,10 @@ namespace srl_eband_local_planner{
           obstacles_points_.push_back(pose);
           ROS_DEBUG("Obstacle added");
         }
-
       }
-
-
       i++;
-
     }
+
 
     //2.0 Apply the Elastic Force to avoid the obstacles
     repaired_global_plan.clear();
@@ -230,92 +265,127 @@ namespace srl_eband_local_planner{
 
     int next_free_index = 1;
 
-    for(int j=1; j<size_original_path; j++){
+    Vector xi;			// the trajectory (q_1, q_2, ...q_n)
+    Vector qs;			// the start config a.k.a. q_0
+    Vector qe;			// the end config a.k.a. q_(n+1)
+    static size_t const nq (size_original_path);	// number of q stacked into xi
+    static size_t const cdim (2);	// dimension of config space
+    static size_t const xidim (nq * cdim); // dimension of trajectory, xidim = nq * cdim
+    static double const dt (1.0);	       // time step
+    static double const eta (100.0); // >= 1, regularization factor for gradient descent
+    static double const lambda (1.0); // weight of smoothness objective
 
-      geometry_msgs::PoseStamped pose_j = global_plan.at(j);
+    // gradient descent etc
 
-      double dist_j;
+    Matrix AA;			// metric
+    Vector bb;			// acceleration bias for start and end config
+    Matrix Ainv;			// inverse of AA
 
-      int obst = findClosestObstacle(pose_j,dist_j);
+    /// Initializing components
+    qs.resize (cdim);
+    qs << start.pose.position.x, start.pose.position.y;
+    qe.resize (cdim);
+    qe << goal.pose.position.x, goal.pose.position.y;
 
-      pose_zero = global_plan.at(j-1);
+    xi = Vector::Zero (xidim);
+    for (size_t ii (0); ii < nq; ++ii) {
+      xi.block (cdim * ii, 0, cdim, 1) = qs;
+    }
 
+    AA = Matrix::Zero (xidim, xidim);
+    for (size_t ii(0); ii < nq; ++ii) {
+      AA.block (cdim * ii, cdim * ii, cdim , cdim) = 2.0 * Matrix::Identity (cdim, cdim);
+      if (ii > 0) {
+        AA.block (cdim * (ii-1), cdim * ii, cdim , cdim) = -1.0 * Matrix::Identity (cdim, cdim);
+        AA.block (cdim * ii, cdim * (ii-1), cdim , cdim) = -1.0 * Matrix::Identity (cdim, cdim);
+      }
+    }
+    AA /= dt * dt * (nq + 1);
 
-       if(dist_j < dist_safe) {
-         ROS_DEBUG("Found Closest Obstacle at dist %f, from path pose index %d", dist_j, j);
+    bb = Vector::Zero (xidim);
+    bb.block (0,            0, cdim, 1) = qs;
+    bb.block (xidim - cdim, 0, cdim, 1) = qe;
+    bb /= - dt * dt * (nq + 1);
 
-         /// Find next free point
-         int h = j+1;
-         bool free_found = false;
-         next_free_index = j+1;
+    Ainv = AA.inverse();
 
-         while(h<size_original_path && !free_found){
+    // TODO: number of CHOMP iteration could be parametrized
+    int N_CHOMP_ITERATIONS = 150;
+    // CHOMP Iterations
+    for(int index_iteration=0; index_iteration<N_CHOMP_ITERATIONS; index_iteration++){
+      // beginning of "the" CHOMP iteration
+      Vector nabla_smooth (AA * xi + bb);
+      Vector const & xidd (nabla_smooth);
 
-           double dist_h;
-           calcObstacleKinematicDistance(global_plan.at(h).pose, dist_h);
+      Vector nabla_obs (Vector::Zero (xidim));
 
-           if(dist_h>dist_safe){
-             ROS_DEBUG("Found next available free pose at index %d, with distance  %f", h, dist_h);
-             free_found = true;
-             pose_final = global_plan.at(h);
-             next_free_index = h;
-           }
+      for (size_t iq (0); iq < nq; ++iq) {
 
-           h++;
+        Vector const qq (xi.block (iq * cdim, 0, cdim, 1));
 
-         }
-
-         double dist_to_final = 1000;
-
-         pose_f = pose_zero ;
-
-         while(dist_to_final>0.1){
-
-           // norm of the vector distance between the path point and the obstacle pose
-           double d = sqrt((obstacles_points_.at(obst).pose.position.x - pose_f.pose.position.x)*(obstacles_points_.at(obst).pose.position.x - pose_f.pose.position.x) +
-             (obstacles_points_.at(obst).pose.position.y - pose_f.pose.position.y)*(obstacles_points_.at(obst).pose.position.y - pose_f.pose.position.y));
-           ROS_ASSERT(d>0.0);
-           double fx = repulsion_gain*(dist_safe - dist_j)*(obstacles_points_.at(obst).pose.position.x - pose_f.pose.position.x)/d;
-           double fy = repulsion_gain*(dist_safe - dist_j)*(obstacles_points_.at(obst).pose.position.y - pose_f.pose.position.y)/d;
-           double dx_to_final =  pose_f.pose.position.x - pose_final.pose.position.x;
-           double dy_to_final = pose_f.pose.position.y - pose_final.pose.position.y;
-           double f_a_x = attractive_gain*dx_to_final;
-           double f_a_y = attractive_gain*dy_to_final;
-
-           dist_to_final = sqrt(dx_to_final*dx_to_final + dy_to_final*dy_to_final);
-
-           if(dist_to_final>100.0 || dist_to_final<-100.0){
-             exit(0);
-           }
-
-           // Integrating
-           pose_f.pose.position.x = (pose_f.pose.position.x + fx + f_a_x);
-           pose_f.pose.position.y = (pose_f.pose.position.y + fy + f_a_y);
-
-           repaired_global_plan.push_back(pose_f);
-
-           ROS_DEBUG("Obstacle Forces %f %f", fx, fy);
-           ROS_DEBUG("Attractive Forces %f %f", f_a_x, f_a_y);
-           ROS_DEBUG("Distance to the next free pose %f", dist_to_final);
-
+        Vector qd;
+        if (0 == iq) {
+          qd = 0.5 * (xi.block ((iq+1) * cdim, 0, cdim, 1) - qs);
+        }
+        else if (iq == nq - 1) {
+          qd = 0.5 * (qe - xi.block ((iq-1) * cdim, 0, cdim, 1));
+        }
+        else {
+          qd = 0.5 * (xi.block ((iq+1) * cdim, 0, cdim, 1) - xi.block ((iq-1) * cdim, 0, cdim, 1));;
         }
 
-        // continuing from the last free
-        ROS_DEBUG("continuing from the last free, index %d ", next_free_index);
-        j = next_free_index;
+        Vector const & xx (qq);
+        Vector const & xd (qd);
+        Matrix const JJ (Matrix::Identity (2, 2));
 
-       }
-       else{
+        double const vel (xd.norm());
+        if (vel < 1.0e-3) {	// avoid div by zero further down
+          continue;
+        }
 
-         repaired_global_plan.push_back(pose_j);
+        Vector const xdn (xd / vel);
+        Vector const xdd (JJ * xidd.block (iq * cdim, 0, cdim , 1));
+        Matrix const prj (Matrix::Identity (2, 2) - xdn * xdn.transpose()); // hardcoded planar case
+        Vector const kappa (prj * xdd / pow (vel, 2.0));
 
+        for(int obst_i =0; obst_i<obstacles_points_.size(); obst_i++)
+        {
+          Vector obst = Vector::Zero(2);
+          obst << obstacles_points_[obst_i].pose.position.x, obstacles_points_[obst_i].pose.position.y;
+          Vector delta (xx - obst);
+          double const dist (delta.norm());
+          if((dist >= dist_safe) || (dist < 1e-9)) {
+               continue;
+            }
+          static double const gain (10.0); // hardcoded param
+          double const cost (gain * dist_safe * pow (1.0 - dist / dist_safe, 3.0) / 3.0); // hardcoded param
+          delta *= - gain * pow (1.0 - dist / dist_safe, 2.0) / dist; // hardcoded param
+          nabla_obs.block (iq * cdim, 0, cdim, 1) += JJ.transpose() * vel * (prj * delta - cost * kappa);
+        }
+    }
 
-       }
+    Vector dxi (Ainv * (nabla_obs + lambda * nabla_smooth));
+    xi -= dxi / eta;
+
+    // end of "the" CHOMP iteration
+    //////////////////////////////////////////////////
+
 
     }
 
+    /// Filling up the repaired global plan
+    repaired_global_plan.clear();
+    for (size_t ii (0); ii < nq; ++ii) {
+      geometry_msgs::PoseStamped pi;
+      pi.header = global_plan.at(0).header;
+      pi.header.stamp = ros::Time().now();
+      Vector position = Vector::Zero(2);
+      position = xi.block (ii * cdim, 0, cdim, 1);
+      pi.pose.position.x = position(0);
+      pi.pose.position.y = position(1);
+      repaired_global_plan.push_back(pi);
 
-
+    }
 
     res = true;
     return res;
@@ -459,11 +529,17 @@ bool SrlEBandPlanner::repairPlan(std::vector<geometry_msgs::PoseStamped> global_
 
     // convert frames in path into bubbles in band -> sets center of bubbles and calculates expansion
     ROS_DEBUG("Converting Plan to Band");
+    /// TEsting
+    std::vector<geometry_msgs::PoseStamped> repaired_global_plan;
+    bool res = repairStripPlan(global_plan_, repaired_global_plan);
+    publishRepairedPlan(repaired_global_plan);
+
+
     if(!convertPlanToBand(global_plan_, elastic_band_))
     {
       std::vector<geometry_msgs::PoseStamped> repaired_global_plan;
-      bool res = repairPlan(global_plan_, repaired_global_plan);
-      // bool res = repairStripPlan(global_plan_, repaired_global_plan);
+      // bool res = repairPlan(global_plan_, repaired_global_plan);
+      bool res = repairStripPlan(global_plan_, repaired_global_plan);
       // eband_visual_->publishRepairedPath(repaired_global_plan);
 
 
@@ -579,8 +655,8 @@ bool SrlEBandPlanner::repairPlan(std::vector<geometry_msgs::PoseStamped> global_
     if(!convertPlanToBand(plan_to_add, band_to_add))
     {
       std::vector<geometry_msgs::PoseStamped> repaired_global_plan;
-      bool res = repairPlan(plan_to_add, repaired_global_plan);
-      // bool res = repairStripPlan(plan_to_add, repaired_global_plan);
+      // bool res = repairPlan(plan_to_add, repaired_global_plan);
+      bool res = repairStripPlan(plan_to_add, repaired_global_plan);
       // eband_visual_->publishRepairedPath(repaired_global_plan);
 
       if(res){
