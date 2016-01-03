@@ -529,30 +529,42 @@ bool SrlEBandPlanner::repairPlan(std::vector<geometry_msgs::PoseStamped> global_
 
     // convert frames in path into bubbles in band -> sets center of bubbles and calculates expansion
     ROS_DEBUG("Converting Plan to Band");
-    /// TEsting
+    ROS_DEBUG("Firstly repair the plan locally with a discrete planner");
     std::vector<geometry_msgs::PoseStamped> repaired_global_plan;
-    bool res = repairStripPlan(global_plan_, repaired_global_plan);
-    publishRepairedPlan(repaired_global_plan);
+
+    // bool res = repairPlan(global_plan_, repaired_global_plan);
+    // bool res = repairStripPlan(global_plan_, repaired_global_plan);
+    //
+    // if(res && !convertPlanToBand(repaired_global_plan, elastic_band_))
+    // {
+    //   std::vector<geometry_msgs::PoseStamped> repaired_global_plan;
+    //   // bool res = repairPlan(global_plan_, repaired_global_plan);
+    //   bool res = repairStripPlan(global_plan_, repaired_global_plan);
+    //   publishRepairedPlan(repaired_global_plan);
+    //   // eband_visual_->publishRepairedPath(repaired_global_plan);
+    //
+    //
+    //   if(res){
+    //        if(!convertPlanToBand(repaired_global_plan, elastic_band_)){
+    //          ROS_ERROR("Failed to convert the repaired path in elastic band");
+    //          return false;
+    //        }
+    //   }else{
+    //     ROS_ERROR("Local repairing didn't work out!");
+    //     return false;
+    //   }
+    // }
 
 
-    if(!convertPlanToBand(global_plan_, elastic_band_))
-    {
-      std::vector<geometry_msgs::PoseStamped> repaired_global_plan;
-      // bool res = repairPlan(global_plan_, repaired_global_plan);
-      bool res = repairStripPlan(global_plan_, repaired_global_plan);
-      // eband_visual_->publishRepairedPath(repaired_global_plan);
 
-
-      if(res){
-           if(!convertPlanToBand(repaired_global_plan, elastic_band_)){
+     if(!convertPlanToBand(global_plan_, elastic_band_)){
              ROS_ERROR("Failed to convert the repaired path in elastic band");
              return false;
-           }
+
       }else{
-        ROS_ERROR("Local repairing didn't work out!");
-        return false;
+            ROS_DEBUG("Global plan properly  converted to a band");
       }
-    }
+
 
 
     // close gaps and remove redundant bubbles
@@ -2233,10 +2245,10 @@ bool SrlEBandPlanner::repairPlan(std::vector<geometry_msgs::PoseStamped> global_
 
     if (disc_cost == costmap_2d::LETHAL_OBSTACLE) {
       // pose is inside an obstacle - very bad
-      distance = 0.0;
+      distance = 0.1; // original value 0.0
     }	else if (disc_cost == costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
       // footprint is definitely inside an obstacle - still bad
-      distance = 0.0;
+      distance = 0.1;  // original value 0.0
     } else {
       if (disc_cost == 0) { // freespace, no estimate of distance
         disc_cost = 1; // lowest non freespace cost

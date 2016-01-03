@@ -487,12 +487,11 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
         y_initial_band_ = elastic_band_.at(index_for_direction).center.pose.position.y;
         theta_initial_band_ =  angles::normalize_angle( tf::getYaw(elastic_band_.at(index_for_direction).center.pose.orientation) - tf::getYaw(elastic_band_.at(0).center.pose.orientation) );
         initial_band_ = true;
-        ROS_WARN("Saving next point of the bubble completed");
     }
     // Look for current robot pose
     tf::StampedTransform transform_flipped;
     try{
-        tf_listener->lookupTransform("odom", "base_link_flipped", ros::Time(0), transform_flipped);
+        tf_listener->lookupTransform("odom", "base_link_flippeds", ros::Time(0), transform_flipped);
     }
     catch (tf::TransformException ex){
             ROS_ERROR("%s",ex.what());
