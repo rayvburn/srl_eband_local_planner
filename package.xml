@@ -27,11 +27,9 @@
   <build_depend>tf_conversions</build_depend>
   <build_depend>dynamic_reconfigure</build_depend>
   <build_depend>global_planner</build_depend>
-  <build_depend>sfl2</build_depend>
   <build_depend>cmake_modules</build_depend>
   <run_depend>cmake_modules</run_depend>
 
-  <run_depend>sfl2</run_depend>
   <run_depend>global_planner</run_depend>
   <run_depend>dynamic_reconfigure</run_depend>
   <run_depend>base_local_planner</run_depend>

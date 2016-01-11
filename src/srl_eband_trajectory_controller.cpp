@@ -491,7 +491,7 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
     // Look for current robot pose
     tf::StampedTransform transform_flipped;
     try{
-        tf_listener->lookupTransform("odom", "base_link_flippeds", ros::Time(0), transform_flipped);
+        tf_listener->lookupTransform("odom", "base_link", ros::Time(0), transform_flipped);
     }
     catch (tf::TransformException ex){
             ROS_ERROR("%s",ex.what());

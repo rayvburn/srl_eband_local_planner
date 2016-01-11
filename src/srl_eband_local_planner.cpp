@@ -213,8 +213,8 @@ namespace srl_eband_local_planner{
 
 
 
-    ROS_WARN("Conversion from plan to elastic band failed. Plan probably not collision free. Plan not set for optimization");
-    ROS_WARN("Locally repairing it..");
+    ROS_DEBUG("Conversion from plan to elastic band failed. Plan probably not collision free. Plan not set for optimization");
+    ROS_DEBUG("Locally repairing it..");
     geometry_msgs::PoseStamped start = global_plan.front();
     geometry_msgs::PoseStamped goal = global_plan.back();
 
@@ -398,9 +398,9 @@ bool SrlEBandPlanner::repairPlan(std::vector<geometry_msgs::PoseStamped> global_
 
 
 
-  ROS_WARN("Conversion from plan to elastic band failed. Plan probably not collision free. Plan not set for optimization");
+  ROS_DEBUG("Conversion from plan to elastic band failed. Plan probably not collision free. Plan not set for optimization");
   // TODO try to do local repairs of band
-  ROS_WARN("Locally repairing it..");
+  ROS_DEBUG("Locally repairing it..");
   geometry_msgs::PoseStamped start = global_plan.front();
   geometry_msgs::PoseStamped goal = global_plan.back();
 
@@ -533,27 +533,28 @@ bool SrlEBandPlanner::repairPlan(std::vector<geometry_msgs::PoseStamped> global_
     std::vector<geometry_msgs::PoseStamped> repaired_global_plan;
 
     // bool res = repairPlan(global_plan_, repaired_global_plan);
-    // bool res = repairStripPlan(global_plan_, repaired_global_plan);
-    //
-    // if(res && !convertPlanToBand(repaired_global_plan, elastic_band_))
-    // {
-    //   std::vector<geometry_msgs::PoseStamped> repaired_global_plan;
-    //   // bool res = repairPlan(global_plan_, repaired_global_plan);
-    //   bool res = repairStripPlan(global_plan_, repaired_global_plan);
-    //   publishRepairedPlan(repaired_global_plan);
-    //   // eband_visual_->publishRepairedPath(repaired_global_plan);
-    //
-    //
-    //   if(res){
-    //        if(!convertPlanToBand(repaired_global_plan, elastic_band_)){
-    //          ROS_ERROR("Failed to convert the repaired path in elastic band");
-    //          return false;
-    //        }
-    //   }else{
-    //     ROS_ERROR("Local repairing didn't work out!");
-    //     return false;
-    //   }
-    // }
+    bool res = repairStripPlan(global_plan_, repaired_global_plan);
+    publishRepairedPlan(repaired_global_plan);
+
+    if(res && !convertPlanToBand(repaired_global_plan, elastic_band_))
+    {
+      std::vector<geometry_msgs::PoseStamped> repaired_global_plan;
+      bool res = repairPlan(global_plan_, repaired_global_plan);
+      // bool res = repairStripPlan(global_plan_, repaired_global_plan);
+      publishRepairedPlan(repaired_global_plan);
+      // eband_visual_->publishRepairedPath(repaired_global_plan);
+
+
+      if(res){
+           if(!convertPlanToBand(repaired_global_plan, elastic_band_)){
+             ROS_ERROR("Failed to convert the repaired path in elastic band");
+             return false;
+           }
+      }else{
+        ROS_ERROR("Local repairing didn't work out!");
+        return false;
+      }
+    }
 
 
 
