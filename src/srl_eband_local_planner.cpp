@@ -193,7 +193,8 @@ namespace srl_eband_local_planner{
     double curr_dist;
     for(int i=0; i<n_obstacles; i++){
 
-      curr_dist=sqrt((obstacles_points_.at(i).pose.position.x -xp)*(obstacles_points_.at(i).pose.position.x - xp) + (obstacles_points_.at(i).pose.position.y - yp)*(obstacles_points_.at(i).pose.position.y -yp));
+      curr_dist=sqrt((obstacles_points_.at(i).pose.position.x -xp)*(obstacles_points_.at(i).pose.position.x - xp)
+      + (obstacles_points_.at(i).pose.position.y - yp)*(obstacles_points_.at(i).pose.position.y -yp));
 
       if(curr_dist<min_dist){
         min_dist = curr_dist;

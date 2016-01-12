@@ -70,7 +70,6 @@
 // boost classes
 #include <boost/bind.hpp>
 #include <boost/shared_ptr.hpp>
-
 #include <srl_eband_local_planner/srlEBandLocalPlannerConfig.h>
 
 namespace srl_eband_local_planner{
