@@ -79,17 +79,23 @@ void SrlEBandTrajectoryCtrl::callbackDynamicReconfigure(srl_eband_local_planner:
   tolerance_rot_ = config.yaw_goal_tolerance_dyn;
   rot_stopping_turn_on_the_spot_ = config.rot_stopping_turn_on_the_spot_dyn;
   max_vel_lin_ = config.max_vel_lin_dyn;
-  ROS_WARN("New max_vel_lin %f", config.max_vel_lin_dyn);
+  ROS_WARN("New max_vel_lin %f", max_vel_lin_);
   min_vel_lin_ = config.min_vel_lin_dyn;
   acc_max_ = config.max_acceleration_dyn;
   min_vel_th_ = config.min_vel_th_dyn;
   max_vel_th_ = config.max_vel_th_dyn;
+  ROS_WARN("New max_vel_th %f", max_vel_th_);
+
   min_in_place_vel_th_ = config.min_in_place_vel_th_dyn;
   in_place_trans_vel_ = config.in_place_trans_vel_dyn;
   k_p_ = config.k_prop_dyn;
   k_nu_ = config.k_damp_dyn;
   ts_ = config.Ts_dyn;
   k_one_ = config.Kv_one_dyn;
+  bubble_velocity_multiplier_ = config.Vel_gain_dyn;
+  tracker_on_ = config.tracker_on;
+
+  ROS_WARN("Velocity Gain changed to %f", bubble_velocity_multiplier_);
   k_two_ = config.Kv_two_dyn;
   b_ = config.B_dyn;
   smoothed_eband_ = config.smoothed_eband_dyn;
@@ -113,8 +119,8 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     ros::NodeHandle node_private("~/" + name);
 
     // read parameters from parameter server
-    node_private.param("max_vel_lin", max_vel_lin_, 0.75);
-    node_private.param("max_vel_th", max_vel_th_, 1.0);
+    node_private.param("max_vel_lin", max_vel_lin_, 1.0);
+    node_private.param("max_vel_th", max_vel_th_, 1.57);
 
     node_private.param("min_vel_lin", min_vel_lin_, 0.1);
     node_private.param("min_vel_th", min_vel_th_, 0.0);
@@ -145,7 +151,7 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     node_private.param("differential_drive", differential_drive_on_, true);
     node_private.param("k_int", k_int_, 0.005);
     node_private.param("k_diff", k_diff_, -0.005);
-    node_private.param("bubble_velocity_multiplier", bubble_velocity_multiplier_, 2.0);
+    node_private.param("bubble_velocity_multiplier", bubble_velocity_multiplier_, 3.0);
     node_private.param("rotation_threshold_multiplier", rotation_threshold_multiplier_, 1.0); //0.75);
     node_private.param("disallow_hysteresis", disallow_hysteresis_, true); //0.75);
 
@@ -189,6 +195,8 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     x_initial_band_ = 0;
     y_initial_band_ = 0;
     theta_initial_band_ = 0;
+
+    tracker_on_ = false;
 
 
   }
@@ -561,8 +569,9 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
     // Get closer to the goal than the tolerance requires before starting the
     // final turn. The final turn may cause you to move slightly out of
     // position
-    if((fabs(bubble_diff.linear.x) <= 0.6 * tolerance_trans_ &&
-        fabs(bubble_diff.linear.y) <= 0.6 * tolerance_trans_) ||
+    // tolerance_trans_
+    if((fabs(bubble_diff.linear.x) <= 0.6 * b_ &&
+        fabs(bubble_diff.linear.y) <= 0.6 * b_) ||
         in_final_goal_turn_) {
       // Calculate orientation difference to goal orientation (not captured in bubble_diff)
       double robot_yaw = tf::getYaw(elastic_band_.at(0).center.pose.orientation);
@@ -780,7 +789,7 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
 
 
 /// =======================================================================================
-/// getTwistDifferentialDrive(geometry_msgs::Twist& twist_cmd, bool& goal_reached)
+/// checkAccelerationBounds(geometry_msgs::Twist& twist_cmd, bool& goal_reached)
 /// =======================================================================================
 geometry_msgs::Twist SrlEBandTrajectoryCtrl::checkAccelerationBounds(geometry_msgs::Twist twist_cmd){
 
@@ -977,8 +986,13 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
       max_vel_lin = (max_vel_lin < 0.3) ? 0.15 : max_vel_lin / 2;
     }
 
+    ROS_DEBUG("Bubble gain %f, bubble_radius %f, velocity_multiplier %f, max_vel_lin %f, max_vel_lin_ %f, distance to the goal %f", bubble_velocity_multiplier_, bubble_radius,
+                velocity_multiplier, max_vel_lin, max_vel_lin_, distance_from_goal);
+
     double linear_velocity = velocity_multiplier * max_vel_lin;
-    linear_velocity *= cos(bubble_diff.angular.z); //decrease while turning
+    ROS_DEBUG("Linar Velocity before checking the turn %f", linear_velocity);
+    linear_velocity *= cos(2*bubble_diff.angular.z); //decrease while turning
+    ROS_DEBUG("Linar Velocity before after the turn %f", linear_velocity);
     if (fabs(linear_velocity) > max_vel_lin_) {
       linear_velocity = forward_sign * max_vel_lin_;
     } else if (fabs(linear_velocity) < min_vel_lin_) {
@@ -1015,8 +1029,12 @@ bool SrlEBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goa
 {
   goal_reached = false;
   if (differential_drive_on_) {
-    // return getTwistDifferentialDrive(twist_cmd, goal_reached);
-    return getTwistUnicycle(twist_cmd, goal_reached);
+
+    if(!tracker_on_)
+      return getTwistDifferentialDrive(twist_cmd, goal_reached);
+    else
+      return getTwistUnicycle(twist_cmd, goal_reached);
+      
   }
 
   // init twist cmd to be handed back to caller

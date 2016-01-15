@@ -200,7 +200,7 @@ namespace srl_eband_local_planner{
       double theta_initial_band_;
       double rot_stopping_turn_on_the_spot_;
 
-
+      bool tracker_on_;
       // flags
       bool initialized_, band_set_, visualization_;
 

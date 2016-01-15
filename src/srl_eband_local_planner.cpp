@@ -534,9 +534,9 @@ bool SrlEBandPlanner::repairPlan(std::vector<geometry_msgs::PoseStamped> global_
     std::vector<geometry_msgs::PoseStamped> repaired_global_plan;
 
     // bool res = repairPlan(global_plan_, repaired_global_plan);
-    bool res = repairStripPlan(global_plan_, repaired_global_plan);
-    publishRepairedPlan(repaired_global_plan);
-
+    // bool res = repairStripPlan(global_plan_, repaired_global_plan);
+    // publishRepairedPlan(repaired_global_plan);
+    bool res = true;
     if(res && !convertPlanToBand(repaired_global_plan, elastic_band_))
     {
       std::vector<geometry_msgs::PoseStamped> repaired_global_plan;
@@ -669,8 +669,8 @@ bool SrlEBandPlanner::repairPlan(std::vector<geometry_msgs::PoseStamped> global_
     if(!convertPlanToBand(plan_to_add, band_to_add))
     {
       std::vector<geometry_msgs::PoseStamped> repaired_global_plan;
-      // bool res = repairPlan(plan_to_add, repaired_global_plan);
-      bool res = repairStripPlan(plan_to_add, repaired_global_plan);
+      bool res = repairPlan(plan_to_add, repaired_global_plan);
+      // bool res = repairStripPlan(plan_to_add, repaired_global_plan);
       // eband_visual_->publishRepairedPath(repaired_global_plan);
 
       if(res){
@@ -2247,10 +2247,10 @@ bool SrlEBandPlanner::repairPlan(std::vector<geometry_msgs::PoseStamped> global_
 
     if (disc_cost == costmap_2d::LETHAL_OBSTACLE) {
       // pose is inside an obstacle - very bad
-      distance = 0.1; // original value 0.0
+      distance = 0.0; // original value 0.0
     }	else if (disc_cost == costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
       // footprint is definitely inside an obstacle - still bad
-      distance = 0.1;  // original value 0.0
+      distance = 0.0;  // original value 0.0
     } else {
       if (disc_cost == 0) { // freespace, no estimate of distance
         disc_cost = 1; // lowest non freespace cost
