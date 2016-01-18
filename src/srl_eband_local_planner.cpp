@@ -2248,10 +2248,12 @@ bool SrlEBandPlanner::repairPlan(std::vector<geometry_msgs::PoseStamped> global_
     if (disc_cost == costmap_2d::LETHAL_OBSTACLE) {
       // pose is inside an obstacle - very bad
       distance = 0.0; // original value 0.0
-    }	else if (disc_cost == costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
-      // footprint is definitely inside an obstacle - still bad
-      distance = 0.0;  // original value 0.0
-    } else {
+    }
+    // 	else if (disc_cost == costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
+    //   // footprint is definitely inside an obstacle - still bad
+    //   distance = 0.0;  // original value 0.0
+    // }
+     else {
       if (disc_cost == 0) { // freespace, no estimate of distance
         disc_cost = 1; // lowest non freespace cost
       } else if (disc_cost == 255) { // unknown space, we should never be here

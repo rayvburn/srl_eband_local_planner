@@ -64,6 +64,8 @@
 // PID control library
 #include <control_toolbox/pid.h>
 
+#include <srl_eband_local_planner/curvature_properties.h>
+
 namespace srl_eband_local_planner{
 
   /**
@@ -224,6 +226,11 @@ namespace srl_eband_local_planner{
       double theta_curr_;
       int lookahed_;
       int curr_control_index_;
+      CurvatureProperties *compute_curvature_properties_;
+      double controller_frequency_;
+      double curvature_guarding_thrs_;
+      bool limit_vel_based_on_curvature_;
+
       ///@brief defines sign of a double
       inline double sign(double n)
       {
@@ -256,6 +263,17 @@ namespace srl_eband_local_planner{
        * @return twist in allowed range
        */
       geometry_msgs::Twist limitTwist(const geometry_msgs::Twist& twist);
+
+
+      /**
+       * @brief limits the max translational and rotational velocity based on the current curvature of the path
+       * @param curr_max_vel, current max velocity
+       * @return true if nothing bad happened
+       */
+      bool limitVelocityCurvature(double &curr_max_vel);
+
+
+
 
       /**
        * @brief gets the max velocity allowed within this bubble depending on size of the bubble and pose and size of the following bubble

@@ -56,9 +56,12 @@ SrlEBandTrajectoryCtrl::SrlEBandTrajectoryCtrl(std::string name, costmap_2d::Cos
 {
   // initialize planner
   initialize(name, costmap_ros);
+  compute_curvature_properties_ = new CurvatureProperties();
   tf_listener = new tf::TransformListener();
   // Initialize pid object (note we'll be further clamping its output)
   pid_.initPid(1, 0, 0, 10, -10);
+  controller_frequency_ = 6.66;
+  curvature_guarding_thrs_ = 0.65;
 }
 
 
@@ -94,14 +97,14 @@ void SrlEBandTrajectoryCtrl::callbackDynamicReconfigure(srl_eband_local_planner:
   k_one_ = config.Kv_one_dyn;
   bubble_velocity_multiplier_ = config.Vel_gain_dyn;
   tracker_on_ = config.tracker_on;
-
+  curvature_guarding_thrs_ = config.curvature_guarding_thrs;
   ROS_WARN("Velocity Gain changed to %f", bubble_velocity_multiplier_);
   k_two_ = config.Kv_two_dyn;
   b_ = config.B_dyn;
   smoothed_eband_ = config.smoothed_eband_dyn;
   acc_max_trans_ = config.max_translational_acceleration_dyn;
   acc_max_rot_ = config.max_rotational_acceleration_dyn;
-
+  limit_vel_based_on_curvature_ = config.limit_vel_based_on_curvature;
   return;
 
 }
@@ -162,12 +165,13 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     node_private.param("smoothed_eband", smoothed_eband_, true);
     node_private.param("lookahed", lookahed_, 2);
 
+    node_private.getParam("/move_base_node/controller_frequency", this->controller_frequency_);
+
     // Ctrl_rate, k_prop, max_vel_lin, max_vel_th, tolerance_trans, tolerance_rot, min_in_place_vel_th
     in_final_goal_turn_ = false;
 
     // copy adress of costmap and Transform Listener (handed over from move_base)
     costmap_ros_ = costmap_ros;
-
 
     planner_frame_ = "odom";
     // init velocity for interpolation
@@ -197,6 +201,8 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     theta_initial_band_ = 0;
 
     tracker_on_ = false;
+
+    limit_vel_based_on_curvature_ = true;
 
 
   }
@@ -840,6 +846,72 @@ geometry_msgs::Twist SrlEBandTrajectoryCtrl::checkAccelerationBounds(geometry_ms
 }
 
 /// =======================================================================================
+/// limitVelocityCurvature()
+/// =======================================================================================
+bool SrlEBandTrajectoryCtrl::limitVelocityCurvature(double &curr_max_vel){
+
+
+      int size_elastic_band = elastic_band_.size();
+      if( (!band_set_) || ( size_elastic_band < 2) ) {
+        ROS_WARN("Requesting computation max curvature from empty band.");
+        return false;
+      }
+
+      vector<double> x_bubbles;
+      vector<double> y_bubbles;
+
+      ROS_DEBUG("Copying path from elastic band of length %d", size_elastic_band);
+
+      for(int i=0; i<size_elastic_band; i++){
+          geometry_msgs::Pose bubble_pose = elastic_band_.at(i).center.pose;
+          x_bubbles.push_back(bubble_pose.position.x);
+          y_bubbles.push_back(bubble_pose.position.y);
+      }
+
+      double maxK = compute_curvature_properties_->pathMaxCurvature(x_bubbles, y_bubbles);
+      int index_maxK = compute_curvature_properties_->getLastIndexMaxCurvature();
+      ROS_DEBUG("Max Curvature %f, index %d", maxK, index_maxK);
+      ROS_DEBUG("Current Max Velocity %f", curr_max_vel);
+      double ds_i = curr_max_vel* (1/controller_frequency_);
+      /// get distance to the point with max curvature
+      if(index_maxK>=size_elastic_band)
+        return false;
+
+      geometry_msgs::Twist diff = getFrame1ToFrame2InRefFrameNew(
+           elastic_band_.at(0).center.pose,
+           elastic_band_.at(index_maxK).center.pose,
+           elastic_band_.at(0).center.pose);
+
+      double ds_maxK =  sqrtf(diff.linear.x * diff.linear.x +
+                                     diff.linear.y * diff.linear.y);
+
+      /// Reduce VELOCITY_COMMAND if Curvature is high
+      // and according to the space of reaction
+      if(maxK >= curvature_guarding_thrs_){
+        ROS_DEBUG("ds_i %f, ds_maxK %f", ds_i, ds_maxK);
+
+        if(ds_maxK>2*ds_i && ds_maxK<4*ds_i)
+        {
+          curr_max_vel = 0.75*curr_max_vel;
+
+        }else if(ds_maxK > ds_i && ds_maxK<2*ds_i){
+
+          curr_max_vel = 0.50*curr_max_vel;
+
+        }else if(ds_maxK < ds_i ){
+          curr_max_vel = 0.35*curr_max_vel;
+
+        }
+      }
+
+      ROS_DEBUG("Final Max Velocity %f", curr_max_vel);
+
+      return true;
+}
+
+
+
+/// =======================================================================================
 /// getTwistDifferentialDrive(geometry_msgs::Twist& twist_cmd, bool& goal_reached)
 /// =======================================================================================
 bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twist_cmd, bool& goal_reached) {
@@ -992,6 +1064,10 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
     double linear_velocity = velocity_multiplier * max_vel_lin;
     ROS_DEBUG("Linar Velocity before checking the turn %f", linear_velocity);
     linear_velocity *= cos(2*bubble_diff.angular.z); //decrease while turning
+
+    if(limit_vel_based_on_curvature_)
+      limitVelocityCurvature(linear_velocity);
+
     ROS_DEBUG("Linar Velocity before after the turn %f", linear_velocity);
     if (fabs(linear_velocity) > max_vel_lin_) {
       linear_velocity = forward_sign * max_vel_lin_;
@@ -1034,7 +1110,7 @@ bool SrlEBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goa
       return getTwistDifferentialDrive(twist_cmd, goal_reached);
     else
       return getTwistUnicycle(twist_cmd, goal_reached);
-      
+
   }
 
   // init twist cmd to be handed back to caller
