@@ -86,7 +86,7 @@ namespace srl_eband_local_planner{
        * @param name The name to give this instance of the elastic band local planner
        * @param costmap The cost map to use for assigning costs to trajectories
        */
-      SrlEBandTrajectoryCtrl(std::string name, costmap_2d::Costmap2DROS* costmap_ros);
+      SrlEBandTrajectoryCtrl(std::string name, costmap_2d::Costmap2DROS* costmap_ros, tf::TransformListener* tf);
 
       /**
        * @brief  Destructor
@@ -98,7 +98,7 @@ namespace srl_eband_local_planner{
        * @param name The name to give this instance of the trajectory planner
        * @param costmap The cost map to use for assigning costs to trajectories
        */
-      void initialize(std::string name, costmap_2d::Costmap2DROS* costmap_ros);
+      void initialize(std::string name, costmap_2d::Costmap2DROS* costmap_ros, tf::TransformListener* tf);
 
       /**
        * @brief passes a reference to the eband visualization object which can be used to visualize the band optimization

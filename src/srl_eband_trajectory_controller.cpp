@@ -51,13 +51,13 @@ using std::max;
 SrlEBandTrajectoryCtrl::SrlEBandTrajectoryCtrl() : costmap_ros_(NULL), initialized_(false), band_set_(false), visualization_(false) {}
 
 
-SrlEBandTrajectoryCtrl::SrlEBandTrajectoryCtrl(std::string name, costmap_2d::Costmap2DROS* costmap_ros)
+SrlEBandTrajectoryCtrl::SrlEBandTrajectoryCtrl(std::string name, costmap_2d::Costmap2DROS* costmap_ros, tf::TransformListener* tf)
   : costmap_ros_(NULL), initialized_(false), band_set_(false), visualization_(false)
 {
   // initialize planner
-  initialize(name, costmap_ros);
+  initialize(name, costmap_ros, tf);
   compute_curvature_properties_ = new CurvatureProperties();
-  tf_listener = new tf::TransformListener();
+  // tf_listener = new tf::TransformListener();
   // Initialize pid object (note we'll be further clamping its output)
   pid_.initPid(1, 0, 0, 10, -10);
   controller_frequency_ = 6.66;
@@ -112,7 +112,7 @@ void SrlEBandTrajectoryCtrl::callbackDynamicReconfigure(srl_eband_local_planner:
 /// =======================================================================================
 /// initialize(std::string name, costmap_2d::Costmap2DROS* costmap_ros)
 /// =======================================================================================
-void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DROS* costmap_ros)
+void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DROS* costmap_ros, tf::TransformListener* tf)
 {
 
   // check if trajectory controller is already initialized
@@ -172,6 +172,8 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
 
     // copy adress of costmap and Transform Listener (handed over from move_base)
     costmap_ros_ = costmap_ros;
+
+    tf_listener = tf;
 
     planner_frame_ = "odom";
     // init velocity for interpolation
@@ -979,7 +981,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
     // final turn. The final turn may cause you to move slightly out of
     // position
     if((fabs(bubble_diff.linear.x) <= 0.6 * tolerance_trans_ &&
-        fabs(bubble_diff.linear.y) <= 0.6 * tolerance_trans_) ||
+        fabs(bubble_diff.linear.y) <= 0.6 * tolerance_trans_ && elastic_band_.size() < 4) ||
         in_final_goal_turn_) {
       // Calculate orientation difference to goal orientation (not captured in bubble_diff)
       double robot_yaw = tf::getYaw(elastic_band_.at(0).center.pose.orientation);
@@ -1054,7 +1056,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
     double velocity_multiplier = bubble_velocity_multiplier_ * bubble_radius;
 
     double max_vel_lin = max_vel_lin_;
-    if (distance_from_goal < 0.75f) {
+    if (distance_from_goal < 1.75f) {
       max_vel_lin = (max_vel_lin < 0.3) ? 0.15 : max_vel_lin / 2;
     }
 

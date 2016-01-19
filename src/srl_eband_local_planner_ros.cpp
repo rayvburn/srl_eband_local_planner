@@ -101,7 +101,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         eband_ = boost::shared_ptr<SrlEBandPlanner>(new SrlEBandPlanner(name, costmap_ros_));
 
         // create the according controller
-        eband_trj_ctrl_ = boost::shared_ptr<SrlEBandTrajectoryCtrl>(new SrlEBandTrajectoryCtrl(name, costmap_ros_));
+        eband_trj_ctrl_ = boost::shared_ptr<SrlEBandTrajectoryCtrl>(new SrlEBandTrajectoryCtrl(name, costmap_ros_, tf_));
 
         // create object for visualization
         eband_visual_ = boost::shared_ptr<SrlEBandVisualization>(new SrlEBandVisualization);
