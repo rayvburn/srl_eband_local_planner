@@ -1160,12 +1160,12 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
       if (fabs(robot_cmd.angular.z) < min_in_place_vel_th_) {
         robot_cmd.angular.z = rotation_sign * min_in_place_vel_th_;
       }
-      // if (fabs(robot_cmd.angular.z) > max_vel_th_) { // limit max rotation
-      //   robot_cmd.angular.z = rotation_sign * max_vel_th_;
+     //  if (fabs(robot_cmd.angular.z) > max_vel_th_) { // limit max rotation
+       //  robot_cmd.angular.z = rotation_sign * max_vel_th_;
       // }
       if (fabs(robot_cmd.angular.z) > max_rotational_velocity_turning_on_spot_) { // limit max rotation
-        robot_cmd.angular.z = rotation_sign * max_rotational_velocity_turning_on_spot_;
-      }
+           robot_cmd.angular.z = rotation_sign * max_rotational_velocity_turning_on_spot_;
+        }
 
       ROS_DEBUG("Performing in place rotation for start (diff): %f", bubble_diff.angular.z, robot_cmd.angular.z);
       command_provided = true;
