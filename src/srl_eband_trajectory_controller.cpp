@@ -38,7 +38,7 @@
 #include <srl_eband_local_planner/srl_eband_trajectory_controller.h>
 #include <tf/transform_datatypes.h>
 /// these are platform dependent, we could set them as params
-#define TRANS_VEL_ABS_LIMIT  1.1
+#define TRANS_VEL_ABS_LIMIT  1.0
 #define ROT_VEL_ABS_LIMIT 1.57;
 tf::TransformListener* tf_listener;
 
@@ -54,14 +54,27 @@ SrlEBandTrajectoryCtrl::SrlEBandTrajectoryCtrl() : costmap_ros_(NULL), initializ
 SrlEBandTrajectoryCtrl::SrlEBandTrajectoryCtrl(std::string name, costmap_2d::Costmap2DROS* costmap_ros, tf::TransformListener* tf)
   : costmap_ros_(NULL), initialized_(false), band_set_(false), visualization_(false)
 {
+  controller_frequency_ = 6.66;
+  curvature_guarding_thrs_ = 0.65;
+  warning_robot_radius_ = 2.0;
+  front_laser_frame_ = "laser_front_link";
+  rear_laser_frame_ = "laser_rear_link";
+  num_points_front_robot_ = 0;
+  num_points_rear_robot_ = 0;
+  front_laser_topic_ = "/spencer/sensors/laser_front/echo0";
+  rear_laser_topic_ = "/spencer/sensors/laser_rear/echo0";
+  backward_motion_on_ - true;
+  limit_vel_based_laser_points_density_= true;
+  max_translational_vel_due_to_laser_points_density_ = 0.5;
+  warning_robot_angle_ = M_PI/2;
+  max_rotational_velocity_turning_on_spot_ = 0.75;
   // initialize planner
   initialize(name, costmap_ros, tf);
   compute_curvature_properties_ = new CurvatureProperties();
   // tf_listener = new tf::TransformListener();
   // Initialize pid object (note we'll be further clamping its output)
   pid_.initPid(1, 0, 0, 10, -10);
-  controller_frequency_ = 6.66;
-  curvature_guarding_thrs_ = 0.65;
+
 }
 
 
@@ -82,13 +95,11 @@ void SrlEBandTrajectoryCtrl::callbackDynamicReconfigure(srl_eband_local_planner:
   tolerance_rot_ = config.yaw_goal_tolerance_dyn;
   rot_stopping_turn_on_the_spot_ = config.rot_stopping_turn_on_the_spot_dyn;
   max_vel_lin_ = config.max_vel_lin_dyn;
-  ROS_WARN("New max_vel_lin %f", max_vel_lin_);
   min_vel_lin_ = config.min_vel_lin_dyn;
   acc_max_ = config.max_acceleration_dyn;
   min_vel_th_ = config.min_vel_th_dyn;
   max_vel_th_ = config.max_vel_th_dyn;
-  ROS_WARN("New max_vel_th %f", max_vel_th_);
-
+  warning_robot_radius_ = config.warning_robot_radius_dyn;
   min_in_place_vel_th_ = config.min_in_place_vel_th_dyn;
   in_place_trans_vel_ = config.in_place_trans_vel_dyn;
   k_p_ = config.k_prop_dyn;
@@ -98,13 +109,23 @@ void SrlEBandTrajectoryCtrl::callbackDynamicReconfigure(srl_eband_local_planner:
   bubble_velocity_multiplier_ = config.Vel_gain_dyn;
   tracker_on_ = config.tracker_on;
   curvature_guarding_thrs_ = config.curvature_guarding_thrs;
-  ROS_WARN("Velocity Gain changed to %f", bubble_velocity_multiplier_);
   k_two_ = config.Kv_two_dyn;
+  backward_motion_on_ = config.backward_motion_on_dyn;
   b_ = config.B_dyn;
   smoothed_eband_ = config.smoothed_eband_dyn;
   acc_max_trans_ = config.max_translational_acceleration_dyn;
   acc_max_rot_ = config.max_rotational_acceleration_dyn;
   limit_vel_based_on_curvature_ = config.limit_vel_based_on_curvature;
+  limit_vel_based_laser_points_density_ = config.limit_vel_based_laser_points_density_dyn;
+  max_translational_vel_due_to_laser_points_density_ = config.max_translational_vel_due_to_laser_points_density_dyn;
+  warning_robot_angle_ = config.warning_robot_angle_dyn;
+  max_rotational_velocity_turning_on_spot_ = config.max_rotational_velocity_turning_on_spot_dyn;
+  ROS_DEBUG("New max_vel_lin %f", max_vel_lin_);
+  ROS_DEBUG("New min_vel_lin_ %f", min_vel_lin_);
+  ROS_DEBUG("Velocity Gain changed to %f", bubble_velocity_multiplier_);
+  ROS_DEBUG("warning_robot_angle_ to %f", warning_robot_angle_);
+  ROS_DEBUG("New max_vel_th %f", max_vel_th_);
+
   return;
 
 }
@@ -121,35 +142,25 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     // create Node Handle with name of plugin (as used in move_base for loading)
     ros::NodeHandle node_private("~/" + name);
 
+
     // read parameters from parameter server
     node_private.param("max_vel_lin", max_vel_lin_, 1.0);
     node_private.param("max_vel_th", max_vel_th_, 1.57);
-
     node_private.param("min_vel_lin", min_vel_lin_, 0.1);
     node_private.param("min_vel_th", min_vel_th_, 0.0);
-
     node_private.param("min_in_place_vel_th", min_in_place_vel_th_, 0.0);
     node_private.param("in_place_trans_vel", in_place_trans_vel_, 0.0);
-
     node_private.param("rot_stopping_turn_on_the_spot", rot_stopping_turn_on_the_spot_, 0.05);
-
-    node_private.param("xy_goal_tolerance", tolerance_trans_, 0.02);
+    node_private.param("xy_goal_tolerance", tolerance_trans_, 0.35);
     node_private.param("yaw_goal_tolerance", tolerance_rot_, 0.04);
     node_private.param("tolerance_timeout", tolerance_timeout_, 0.5);
-
     node_private.param("k_prop", k_p_, 4.0);
     node_private.param("k_damp", k_nu_, 3.5);
-
-    node_private.param("Ctrl_Rate", ctrl_freq_, 10.0); // TODO retrieve this from move base parameters
-
     node_private.param("max_acceleration", acc_max_, 0.5);
     node_private.param("virtual_mass", virt_mass_, 0.75);
-
     node_private.param("max_translational_acceleration", acc_max_trans_, 1.0);
     node_private.param("max_rotational_acceleration", acc_max_rot_, 1.5);
-
     node_private.param("rotation_correction_threshold", rotation_correction_threshold_, 0.5);
-
     // diffferential drive parameters
     node_private.param("differential_drive", differential_drive_on_, true);
     node_private.param("k_int", k_int_, 0.005);
@@ -157,15 +168,26 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     node_private.param("bubble_velocity_multiplier", bubble_velocity_multiplier_, 3.0);
     node_private.param("rotation_threshold_multiplier", rotation_threshold_multiplier_, 1.0); //0.75);
     node_private.param("disallow_hysteresis", disallow_hysteresis_, true); //0.75);
-
     node_private.param("Ts", ts_ , 0.1);
     node_private.param("Kv_one", k_one_, 1.0);
     node_private.param("Kv_two", k_two_, 1.0);
     node_private.param("B", b_, 0.15);
     node_private.param("smoothed_eband", smoothed_eband_, true);
     node_private.param("lookahed", lookahed_, 2);
-
     node_private.getParam("/move_base_node/controller_frequency", this->controller_frequency_);
+    node_private.getParam("limit_vel_based_laser_points_density", this->limit_vel_based_laser_points_density_);
+    node_private.getParam("front_laser_frame", this->front_laser_frame_);
+    node_private.getParam("rear_laser_frame", this->rear_laser_frame_);
+    node_private.getParam("warning_robot_radius", this->warning_robot_radius_);
+    node_private.getParam("front_laser_topic", this->front_laser_topic_);
+    node_private.getParam("rear_laser_topic", this->rear_laser_topic_);
+    node_private.getParam("backward_motion_on", this->backward_motion_on_);
+
+    node_private.getParam("max_trnslationla_vel_due_to_laser_points_density", this->max_translational_vel_due_to_laser_points_density_);
+
+    /// define subscribers
+    sub_front_laser_ =  node_private.subscribe(front_laser_topic_, 1, &SrlEBandTrajectoryCtrl::callbackLaserScanReceived, this);
+    sub_rear_laser_  =  node_private.subscribe(rear_laser_topic_, 1, &SrlEBandTrajectoryCtrl::callbackLaserScanReceived, this);
 
     // Ctrl_rate, k_prop, max_vel_lin, max_vel_th, tolerance_trans, tolerance_rot, min_in_place_vel_th
     in_final_goal_turn_ = false;
@@ -214,6 +236,89 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
   }
 }
 
+/// =======================================================================================
+/// callbackLaserScanReceived(const sensor_msgs::LaserScan& laserscan), read laser scan
+/// =======================================================================================
+void SrlEBandTrajectoryCtrl::callbackLaserScanReceived(const sensor_msgs::LaserScan& laserscan){
+
+  bool front_laser = false;
+  bool rear_laser = false;
+
+  if(strcmp(front_laser_frame_.c_str(), laserscan.header.frame_id.c_str() ) == 0){
+    front_laser = true;
+    if(backward_motion_on_)
+      {
+        num_points_rear_robot_ = 0;
+      }
+    else
+      {
+        num_points_front_robot_ = 0;
+      }
+    ROS_DEBUG("Front Laser");
+  }
+
+  if(strcmp(rear_laser_frame_.c_str(), laserscan.header.frame_id.c_str() ) == 0){
+    rear_laser = true;
+    if(backward_motion_on_)
+        {
+          num_points_front_robot_ = 0;
+        }
+    else
+        {
+          num_points_rear_robot_ = 0;
+        }
+    ROS_DEBUG("Rear Laser");
+  }
+
+
+  for(size_t p_i = 0; p_i < laserscan.ranges.size(); p_i++) {
+
+      const double phi = laserscan.angle_min + laserscan.angle_increment * p_i;
+      const double rho = laserscan.ranges[p_i];
+
+      // Only process points with valid range data
+      const bool is_in_range = rho > laserscan.range_min && rho < laserscan.range_max;
+
+
+      if(is_in_range)
+      {
+          // Assuming that laser frame is almost equal to the base_link frame,
+          // to reduce number of transforms
+
+          // Check if inside warning radius
+          if(rho < warning_robot_radius_ && fabs(phi) < warning_robot_angle_ ){
+              ROS_DEBUG("Value of Phi %f and Rho %f", phi, rho);
+              if(front_laser)
+                {
+                  if(backward_motion_on_)
+                    {
+                      num_points_rear_robot_++;
+                    }
+                  else
+                    {
+                      num_points_front_robot_++;
+                    }
+                }
+                else if(rear_laser){
+
+                    if(backward_motion_on_)
+                        {
+                          num_points_front_robot_++;
+                        }
+                    else
+                        {
+                          num_points_rear_robot_++;
+                        }
+
+                }
+          }
+
+      }
+  }
+
+  ROS_DEBUG("Points in front of the robot %d, points rear side of the robot %d",num_points_front_robot_, num_points_rear_robot_ );
+  return ;
+}
 
 
 /// =======================================================================================
@@ -363,11 +468,8 @@ double angularDiff (const geometry_msgs::Twist& heading,
 geometry_msgs::PoseStamped SrlEBandTrajectoryCtrl::transformPose(geometry_msgs::PoseStamped init_pose){
 
     geometry_msgs::PoseStamped res;
-
     tf::StampedTransform transform;
-
     try{
-
         // will transform data in the goal_frame into the planner_frame_
       //  tf_listener->waitForTransform( planner_frame_, init_pose.header.frame_id, ros::Time::now(), ros::Duration(0.40));
        tf_listener->lookupTransform(  planner_frame_, init_pose.header.frame_id, ros::Time::now(), transform);
@@ -379,23 +481,16 @@ geometry_msgs::PoseStamped SrlEBandTrajectoryCtrl::transformPose(geometry_msgs::
     }
 
     tf::Pose source;
-
-
     tf::Quaternion q(init_pose.pose.orientation.x, init_pose.pose.orientation.y, init_pose.pose.orientation.z, init_pose.pose.orientation.w);
-
     q = q.normalize();
 
     // tf::Quaternion q = tf::createQuaternionFromRPY(0,0,tf::getYaw(init_pose.pose.orientation));
-
     tf::Matrix3x3 base(q);
-
     source.setOrigin(tf::Vector3(init_pose.pose.position.x, init_pose.pose.position.y, 0));
-
     source.setBasis(base);
 
     /// Apply the proper transform
     tf::Pose result = transform*source;
-
     res.pose.position.x = result.getOrigin().x() ;
     res.pose.position.y = result.getOrigin().y() ;
     res.pose.position.z = result.getOrigin().z() ;
@@ -813,8 +908,8 @@ geometry_msgs::Twist SrlEBandTrajectoryCtrl::checkAccelerationBounds(geometry_ms
   ROS_DEBUG("accelerations  %f %f", acc_desired.linear.x, acc_desired.angular.z);
 
 
-  // acc_desired.linear.x =  ctrl_freq_*(twist_cmd.linear.x - last_vel_.linear.x);
-  // acc_desired.angular.z = ctrl_freq_* (twist_cmd.angular.z - last_vel_.angular.z);
+  // acc_desired.linear.x =  controller_frequency_*(twist_cmd.linear.x - last_vel_.linear.x);
+  // acc_desired.angular.z = controller_frequency_* (twist_cmd.angular.z - last_vel_.angular.z);
 
   // constrain acceleration
   double scale_acc;
@@ -836,8 +931,8 @@ geometry_msgs::Twist SrlEBandTrajectoryCtrl::checkAccelerationBounds(geometry_ms
 
   ROS_DEBUG("Scaled accelerations  %f %f", acc_desired.linear.x, acc_desired.angular.z);
   // and get velocity-cmds by integrating them over one time-step
-  last_vel_.linear.x = last_vel_.linear.x + acc_desired.linear.x / ctrl_freq_;
-  last_vel_.angular.z = last_vel_.angular.z + acc_desired.angular.z / ctrl_freq_;
+  last_vel_.linear.x = last_vel_.linear.x + acc_desired.linear.x / controller_frequency_;
+  last_vel_.angular.z = last_vel_.angular.z + acc_desired.angular.z / controller_frequency_;
   ROS_DEBUG("Last Velocity %f %f", last_vel_.linear.x, last_vel_.angular.z);
   ROS_DEBUG("Last Velocity Limited %f %f", last_vel_.linear.x, last_vel_.angular.z);
 
@@ -846,7 +941,29 @@ geometry_msgs::Twist SrlEBandTrajectoryCtrl::checkAccelerationBounds(geometry_ms
 
 
 }
+/// =======================================================================================
+/// limitVelocityDensityLaserPoints(), define upper bound velocity according to density of laser points, and band direction
+/// =======================================================================================
+bool SrlEBandTrajectoryCtrl::limitVelocityDensityLaserPoints(double &curr_max_vel, double band_dir){
 
+    /// Moving backward rear_laser counts
+    if(fabs(band_dir)<=M_PI/2 ){
+        if(num_points_front_robot_ > 75){
+            curr_max_vel = max_translational_vel_due_to_laser_points_density_;
+            ROS_DEBUG("Limiting Velocity due to too many Laser scans");
+        }
+    }
+    else /// Moving forward front_laser counts
+    {
+      if(num_points_rear_robot_ > 75){
+          curr_max_vel = max_translational_vel_due_to_laser_points_density_;
+          ROS_DEBUG("Limiting Velocity due to too many Laser scans in front of the robot (Rear)");
+      }
+
+    }
+
+    return true;
+}
 /// =======================================================================================
 /// limitVelocityCurvature()
 /// =======================================================================================
@@ -981,8 +1098,8 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
     // final turn. The final turn may cause you to move slightly out of
     // position
     if((fabs(bubble_diff.linear.x) <= 0.6 * tolerance_trans_ &&
-        fabs(bubble_diff.linear.y) <= 0.6 * tolerance_trans_ && elastic_band_.size() < 4) ||
-        in_final_goal_turn_) {
+        fabs(bubble_diff.linear.y) <= 0.6 * tolerance_trans_ ) ||
+        (in_final_goal_turn_ && elastic_band_.size() < 2) ) {
       // Calculate orientation difference to goal orientation (not captured in bubble_diff)
       double robot_yaw = tf::getYaw(elastic_band_.at(0).center.pose.orientation);
       double goal_yaw = tf::getYaw(elastic_band_.at((int)elastic_band_.size() - 1).center.pose.orientation);
@@ -991,20 +1108,25 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
         in_final_goal_turn_ = true;
         ROS_DEBUG("Performing in place rotation for goal (diff): %f", orientation_diff);
         double rotation_sign = -2 * (orientation_diff < 0) + 1;
-        robot_cmd.angular.z =
-          rotation_sign * min_in_place_vel_th_ + k_p_ * orientation_diff;
-        if (fabs(robot_cmd.angular.z) > max_vel_th_) { // limit max rotation
-          robot_cmd.angular.z = rotation_sign * max_vel_th_;
+        robot_cmd.angular.z = rotation_sign * min_in_place_vel_th_ + k_p_ * orientation_diff;
+
+        // if (fabs(robot_cmd.angular.z) > max_vel_th_) { // limit max rotation
+        //   robot_cmd.angular.z = rotation_sign * max_vel_th_;
+        // }
+
+        if (fabs(robot_cmd.angular.z) > max_rotational_velocity_turning_on_spot_) { // limit max rotation
+          robot_cmd.angular.z = rotation_sign * max_rotational_velocity_turning_on_spot_;
         }
+
       } else {
-        in_final_goal_turn_ = false; // Goal reached
-        ROS_INFO ("TrajectoryController: Goal reached with distance %.2f, %.2f (od = %.2f)"
+            in_final_goal_turn_ = false; // Goal reached
+            ROS_INFO ("TrajectoryController: Goal reached with distance %.2f, %.2f (od = %.2f)"
             "; sending zero velocity",
             bubble_diff.linear.x, bubble_diff.linear.y, orientation_diff);
-        // goal position reached
-        robot_cmd.linear.x = 0.0;
-        robot_cmd.angular.z = 0.0;
-        goal_reached = true;
+            // goal position reached
+            robot_cmd.linear.x = 0.0;
+            robot_cmd.angular.z = 0.0;
+            goal_reached = true;
       }
       command_provided = true;
     }
@@ -1038,9 +1160,13 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
       if (fabs(robot_cmd.angular.z) < min_in_place_vel_th_) {
         robot_cmd.angular.z = rotation_sign * min_in_place_vel_th_;
       }
-      if (fabs(robot_cmd.angular.z) > max_vel_th_) { // limit max rotation
-        robot_cmd.angular.z = rotation_sign * max_vel_th_;
+      // if (fabs(robot_cmd.angular.z) > max_vel_th_) { // limit max rotation
+      //   robot_cmd.angular.z = rotation_sign * max_vel_th_;
+      // }
+      if (fabs(robot_cmd.angular.z) > max_rotational_velocity_turning_on_spot_) { // limit max rotation
+        robot_cmd.angular.z = rotation_sign * max_rotational_velocity_turning_on_spot_;
       }
+
       ROS_DEBUG("Performing in place rotation for start (diff): %f", bubble_diff.angular.z, robot_cmd.angular.z);
       command_provided = true;
     }
@@ -1066,6 +1192,9 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
     double linear_velocity = velocity_multiplier * max_vel_lin;
     ROS_DEBUG("Linar Velocity before checking the turn %f", linear_velocity);
     linear_velocity *= cos(2*bubble_diff.angular.z); //decrease while turning
+
+    if(limit_vel_based_laser_points_density_)
+      limitVelocityDensityLaserPoints(linear_velocity, bubble_diff.angular.z);
 
     if(limit_vel_based_on_curvature_)
       limitVelocityCurvature(linear_velocity);
@@ -1295,7 +1424,7 @@ bool SrlEBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goa
   {
 
     const double angular_diff = angularDiff(control_deviation, elastic_band_.at(0).center.pose);
-    const double vel = pid_.computeCommand(angular_diff, ros::Duration(1/ctrl_freq_));
+    const double vel = pid_.computeCommand(angular_diff, ros::Duration(1/controller_frequency_));
     const double mult = fabs(vel) > max_vel_th_ ? max_vel_th_/fabs(vel) : 1.0;
     control_deviation.angular.z = vel*mult;
     const double abs_vel = fabs(control_deviation.angular.z);
@@ -1406,9 +1535,9 @@ bool SrlEBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goa
   }
 
   // and get velocity-cmds by integrating them over one time-step
-  last_vel_.linear.x = last_vel_.linear.x + acc_desired.linear.x / ctrl_freq_;
-  last_vel_.linear.y = last_vel_.linear.y + acc_desired.linear.y / ctrl_freq_;
-  last_vel_.angular.z = last_vel_.angular.z + acc_desired.angular.z / ctrl_freq_;
+  last_vel_.linear.x = last_vel_.linear.x + acc_desired.linear.x / controller_frequency_;
+  last_vel_.linear.y = last_vel_.linear.y + acc_desired.linear.y / controller_frequency_;
+  last_vel_.angular.z = last_vel_.angular.z + acc_desired.angular.z / controller_frequency_;
 
 
   // we are almost done now take into accoun stick-slip and similar nasty things

@@ -36,7 +36,8 @@
  *********************************************************************/
 
 #include <srl_eband_local_planner/srl_eband_local_planner_ros.h>
-
+#include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/thread/thread.hpp>
 // pluginlib macros (defines, ...)
 #include <pluginlib/class_list_macros.h>
 
@@ -189,7 +190,10 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       {
         // We've had some difficulty where the global planner keeps returning a valid path that runs through an obstacle
         // in the local costmap. See issue #5. Here we clear the local costmap and try one more time.
-        // costmap_ros_->resetLayers();
+        ROS_WARN("First attempt of setting plan failed, Resetting Costmap layers and waiting..");
+        costmap_ros_->resetLayers(); /// TODO Testing it!!!
+        boost::this_thread::sleep(boost::posix_time::milliseconds(100)); /// TODO Testing it!!!
+
         if (!eband_->setPlan(transformed_plan_)) {
           ROS_ERROR("Setting plan to Elastic Band method failed!");
           return false;

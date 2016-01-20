@@ -51,6 +51,9 @@
 #include <geometry_msgs/Pose2D.h>
 #include <geometry_msgs/Twist.h>
 
+// sensor msg
+#include <sensor_msgs/LaserScan.h>
+
 // nav_msgs
 #include <nav_msgs/Odometry.h>
 
@@ -162,20 +165,25 @@ namespace srl_eband_local_planner{
        */
       geometry_msgs::Twist checkAccelerationBounds(geometry_msgs::Twist twist_cmd);
 
-
       /**
        * @brief callbackDynamicReconfigure, Changes the dynamic parameters
        */
       void callbackDynamicReconfigure(srl_eband_local_planner::srlEBandLocalPlannerConfig &config, uint32_t level);
+
+      /**
+       * @brief callbackLaserScanReceived, Used to read laser scans and limit the current maximum velocity
+       */
+      void callbackLaserScanReceived(const sensor_msgs::LaserScan& laserscan);
+
 
     private:
 
       // pointer to external objects (do NOT delete object)
       costmap_2d::Costmap2DROS* costmap_ros_; ///<@brief pointer to costmap
       boost::shared_ptr<SrlEBandVisualization> target_visual_; // pointer to visualization object
-
+      ros::Subscriber sub_front_laser_;
+      ros::Subscriber sub_rear_laser_;
       dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig> *dr_server_;
-
       control_toolbox::Pid pid_;
 
       // parameters
@@ -201,6 +209,7 @@ namespace srl_eband_local_planner{
       double y_initial_band_;
       double theta_initial_band_;
       double rot_stopping_turn_on_the_spot_;
+      double max_rotational_velocity_turning_on_spot_;
 
       bool tracker_on_;
       // flags
@@ -230,6 +239,18 @@ namespace srl_eband_local_planner{
       double controller_frequency_;
       double curvature_guarding_thrs_;
       bool limit_vel_based_on_curvature_;
+
+      bool limit_vel_based_laser_points_density_;
+      int num_points_front_robot_;
+      int num_points_rear_robot_;
+      double warning_robot_radius_;
+      double warning_robot_angle_;
+      bool backward_motion_on_;
+      double max_translational_vel_due_to_laser_points_density_;
+      std::string front_laser_frame_;
+      std::string rear_laser_frame_;
+      std::string rear_laser_topic_;
+      std::string front_laser_topic_;
 
       ///@brief defines sign of a double
       inline double sign(double n)
@@ -272,8 +293,13 @@ namespace srl_eband_local_planner{
        */
       bool limitVelocityCurvature(double &curr_max_vel);
 
-
-
+      /**
+       * @brief limits the max translational and rotational velocity based on the density of the laser scans
+       * @param curr_max_vel, current max velocity
+       * @param band_dir, direction of the elastic band
+       * @return true if nothing bad happened
+       */
+      bool limitVelocityDensityLaserPoints(double &curr_max_vel, double band_dir);
 
       /**
        * @brief gets the max velocity allowed within this bubble depending on size of the bubble and pose and size of the following bubble
@@ -282,6 +308,8 @@ namespace srl_eband_local_planner{
        * @return absolute value of maximum allowed velocity within this bubble
        */
       double getBubbleTargetVel(const int& target_bub_num, const std::vector<Bubble>& band, geometry_msgs::Twist& VelDir);
+
+
 
   };
 };

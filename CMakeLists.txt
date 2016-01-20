@@ -23,7 +23,7 @@ ADD_DEFINITIONS(-funroll-loops)
 ADD_DEFINITIONS(-fomit-frame-pointer)
 ADD_DEFINITIONS(-pipe)
 ADD_DEFINITIONS(-ftree-vectorize)
-ADD_DEFINITIONS(-DNDEBUG)
+ADD_DEFINITIONS(-DNDEBUG )
 
 set(CMAKE_BUILD_TYPE Debug)
 find_package(catkin REQUIRED
@@ -33,6 +33,7 @@ find_package(catkin REQUIRED
     control_toolbox
     costmap_2d
     geometry_msgs
+    sensor_msgs
     nav_core
     nav_msgs
     pluginlib
@@ -62,6 +63,7 @@ catkin_package(
     control_toolbox
     costmap_2d
     geometry_msgs
+    sensor_msgs
     nav_core
     nav_msgs
     pluginlib
@@ -74,6 +76,13 @@ catkin_package(
   INCLUDE_DIRS include
   LIBRARIES srl_eband_local_planner
 )
+
+if(NOT CMAKE_BUILD_TYPE MATCHES Debug)
+# Disable debug and info-level logging statements in release mode
+add_definitions(-DROSCONSOLE_MIN_SEVERITY=ROSCONSOLE_SEVERITY_WARN)
+else()
+add_definitions(-DROSCONSOLE_MIN_SEVERITY=ROSCONSOLE_SEVERITY_DEBUG)
+endif()
 
 
 # build the library

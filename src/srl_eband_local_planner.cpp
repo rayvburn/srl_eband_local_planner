@@ -113,7 +113,7 @@ namespace srl_eband_local_planner{
       // optimization - force calculation
       pn.param("eband_internal_force_gain", internal_force_gain_, 1.0);
       pn.param("eband_external_force_gain", external_force_gain_, 2.0);
-      pn.param("num_iterations_eband_optimization", num_optim_iterations_, 3);
+      pn.param("num_iterations_eband_optimization", num_optim_iterations_, 6);
 
       // recursive approximation of bubble equilibrium position based
       pn.param("eband_equilibrium_approx_max_recursion_depth", max_recursion_depth_approx_equi_, 4);
