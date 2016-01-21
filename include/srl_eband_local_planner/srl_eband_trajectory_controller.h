@@ -68,6 +68,7 @@
 #include <control_toolbox/pid.h>
 
 #include <srl_eband_local_planner/curvature_properties.h>
+#include <srl_eband_local_planner/context_cost_function.h>
 
 namespace srl_eband_local_planner{
 
@@ -251,7 +252,11 @@ namespace srl_eband_local_planner{
       std::string rear_laser_frame_;
       std::string rear_laser_topic_;
       std::string front_laser_topic_;
+      std::string robot_frame_;
+      /// human awareness
+      bool human_legibility_on_;
 
+      hanp_local_planner::ContextCostFunction *context_cost_function_;
       ///@brief defines sign of a double
       inline double sign(double n)
       {

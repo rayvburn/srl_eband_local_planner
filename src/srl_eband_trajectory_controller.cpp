@@ -64,6 +64,7 @@ SrlEBandTrajectoryCtrl::SrlEBandTrajectoryCtrl(std::string name, costmap_2d::Cos
   front_laser_topic_ = "/spencer/sensors/laser_front/echo0";
   rear_laser_topic_ = "/spencer/sensors/laser_rear/echo0";
   backward_motion_on_ - true;
+  robot_frame_ = "base_link_flipped";
   limit_vel_based_laser_points_density_= true;
   max_translational_vel_due_to_laser_points_density_ = 0.5;
   warning_robot_angle_ = M_PI/2;
@@ -99,7 +100,6 @@ void SrlEBandTrajectoryCtrl::callbackDynamicReconfigure(srl_eband_local_planner:
   acc_max_ = config.max_acceleration_dyn;
   min_vel_th_ = config.min_vel_th_dyn;
   max_vel_th_ = config.max_vel_th_dyn;
-  warning_robot_radius_ = config.warning_robot_radius_dyn;
   min_in_place_vel_th_ = config.min_in_place_vel_th_dyn;
   in_place_trans_vel_ = config.in_place_trans_vel_dyn;
   k_p_ = config.k_prop_dyn;
@@ -119,7 +119,19 @@ void SrlEBandTrajectoryCtrl::callbackDynamicReconfigure(srl_eband_local_planner:
   limit_vel_based_laser_points_density_ = config.limit_vel_based_laser_points_density_dyn;
   max_translational_vel_due_to_laser_points_density_ = config.max_translational_vel_due_to_laser_points_density_dyn;
   warning_robot_angle_ = config.warning_robot_angle_dyn;
+  warning_robot_radius_ = config.warning_robot_radius_dyn;
   max_rotational_velocity_turning_on_spot_ = config.max_rotational_velocity_turning_on_spot_dyn;
+  human_legibility_on_ = config.human_legibility_on_dyn;
+  context_cost_function_->setParams(config.cc_alpha_max, config.cc_d_low,
+              config.cc_d_high, config.cc_beta, config.cc_min_scale,
+              config.sim_time, config.publish_predictions, config.publish_curr_traj);
+
+  if(backward_motion_on_){
+    robot_frame_ = "base_link_flipped";
+  }else{
+    robot_frame_ = "base_link";
+  }
+
   ROS_DEBUG("New max_vel_lin %f", max_vel_lin_);
   ROS_DEBUG("New min_vel_lin_ %f", min_vel_lin_);
   ROS_DEBUG("Velocity Gain changed to %f", bubble_velocity_multiplier_);
@@ -183,7 +195,7 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     node_private.getParam("rear_laser_topic", this->rear_laser_topic_);
     node_private.getParam("backward_motion_on", this->backward_motion_on_);
 
-    node_private.getParam("max_trnslationla_vel_due_to_laser_points_density", this->max_translational_vel_due_to_laser_points_density_);
+    node_private.getParam("max_translational_vel_due_to_laser_points_density", this->max_translational_vel_due_to_laser_points_density_);
 
     /// define subscribers
     sub_front_laser_ =  node_private.subscribe(front_laser_topic_, 1, &SrlEBandTrajectoryCtrl::callbackLaserScanReceived, this);
@@ -228,6 +240,8 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
 
     limit_vel_based_on_curvature_ = true;
 
+    context_cost_function_ =  new hanp_local_planner::ContextCostFunction();
+    context_cost_function_->initialize(planner_frame_, tf_listener);
 
   }
   else
@@ -602,7 +616,7 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
     // Look for current robot pose
     tf::StampedTransform transform_flipped;
     try{
-        tf_listener->lookupTransform("odom", "base_link", ros::Time(0), transform_flipped);
+        tf_listener->lookupTransform("odom", robot_frame_, ros::Time(0), transform_flipped);
     }
     catch (tf::TransformException ex){
             ROS_ERROR("%s",ex.what());
@@ -1193,11 +1207,15 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
     ROS_DEBUG("Linar Velocity before checking the turn %f", linear_velocity);
     linear_velocity *= cos(2*bubble_diff.angular.z); //decrease while turning
 
+    /// Verify now limits
+
     if(limit_vel_based_laser_points_density_)
       limitVelocityDensityLaserPoints(linear_velocity, bubble_diff.angular.z);
 
     if(limit_vel_based_on_curvature_)
       limitVelocityCurvature(linear_velocity);
+
+
 
     ROS_DEBUG("Linar Velocity before after the turn %f", linear_velocity);
     if (fabs(linear_velocity) > max_vel_lin_) {
@@ -1215,6 +1233,42 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
     } else if (fabs(angular_velocity) < min_vel_th_) {
       angular_velocity = rotation_sign * min_vel_th_;
     }
+
+
+
+    if(human_legibility_on_){
+      ROS_DEBUG("Human Legibility on");
+      // get current robot pose
+      tf::StampedTransform transform_flipped;
+      try{
+          tf_listener->lookupTransform("odom", robot_frame_ , ros::Time(0), transform_flipped);
+      }
+      catch (tf::TransformException ex){
+              ROS_ERROR("%s",ex.what());
+              ros::Duration(1.0).sleep();
+              return false;
+      }
+
+      double x_rob = transform_flipped.getOrigin().x();
+      double y_rob = transform_flipped.getOrigin().y();
+      tf::Quaternion qcurr_flipped = transform_flipped.getRotation();
+      qcurr_flipped.normalize();
+      double robot_yaw = tf::getYaw(qcurr_flipped);
+
+
+      base_local_planner::Trajectory local_path;
+      context_cost_function_->generateTrajectory(x_rob, y_rob, robot_yaw,
+          linear_velocity, angular_velocity, local_path, backward_motion_on_);
+
+      double trajectory_scale = context_cost_function_->scoreTrajectory(local_path);
+
+      if(trajectory_scale<1.0){
+        linear_velocity =  trajectory_scale * linear_velocity;
+        angular_velocity = trajectory_scale * angular_velocity;
+      }
+
+    }
+
 
     ROS_DEBUG("Selected velocity: lin: %f, ang: %f",
         linear_velocity, angular_velocity);
