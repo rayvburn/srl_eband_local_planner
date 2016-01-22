@@ -69,6 +69,7 @@ SrlEBandTrajectoryCtrl::SrlEBandTrajectoryCtrl(std::string name, costmap_2d::Cos
   max_translational_vel_due_to_laser_points_density_ = 0.5;
   warning_robot_angle_ = M_PI/2;
   max_rotational_velocity_turning_on_spot_ = 0.75;
+  human_legibility_on_ = true;
   // initialize planner
   initialize(name, costmap_ros, tf);
   compute_curvature_properties_ = new CurvatureProperties();
@@ -353,7 +354,8 @@ bool SrlEBandTrajectoryCtrl::setBand(const std::vector<Bubble>& elastic_band)
 {
   elastic_band_ = elastic_band;
   band_set_ = true;
-
+  previous_angular_error_=0;
+  integral_angular_=0;
   // create local variables
   std::vector<geometry_msgs::PoseStamped> tmp_plan;
 
@@ -1226,8 +1228,15 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
 
     // Select an angular velocity (based on PID controller)
     double error = bubble_diff.angular.z;
+    integral_angular_ = integral_angular_ + error*(1/controller_frequency_);
+    double derivative_angular = (error - previous_angular_error_)*controller_frequency_;
+
     double rotation_sign = -2 * (bubble_diff.angular.z < 0) + 1;
+    /// Only Propotinal term
     double angular_velocity = k_p_ * error;
+
+    // double angular_velocity = k_p_ * error + k_one_ * integral_angular_ + k_two_*derivative_angular;
+
     if (fabs(angular_velocity) > max_vel_th_) {
       angular_velocity = rotation_sign * max_vel_th_;
     } else if (fabs(angular_velocity) < min_vel_th_) {
@@ -1275,6 +1284,8 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
 
     robot_cmd.linear.x = linear_velocity;
     robot_cmd.angular.z = angular_velocity;
+
+    previous_angular_error_ = error;
     command_provided = true;
   }
 

@@ -257,8 +257,12 @@ namespace hanp_local_planner
                     point_index, transformed_human.poses.size());
 
                 // discard human behind the robot
+                // TODO: check, maybe it is right to compute the angle of the vector from the robot
+                // to the humans
+                // atan2(future_human_pose.pose2d.y - rx,future_human_pose.pose2d.x - rx))
                 auto a_p = fabs(angles::shortest_angular_distance(rtheta, atan2(ry - future_human_pose.pose2d.y,
                     rx - future_human_pose.pose2d.x)));
+
                 if (a_p < beta_)
                 {
                     ROS_DEBUG_NAMED("context_cost_function", "discarding human (%d)"

@@ -192,7 +192,8 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         // in the local costmap. See issue #5. Here we clear the local costmap and try one more time.
         ROS_WARN("First attempt of setting plan failed, Resetting Costmap layers and waiting..");
         costmap_ros_->resetLayers(); /// TODO Testing it!!!
-        boost::this_thread::sleep(boost::posix_time::milliseconds(100)); /// TODO Testing it!!!
+        // costmap_ros_->updateMap();
+        boost::this_thread::sleep(boost::posix_time::milliseconds(1000)); /// TODO Testing it!!!
 
         if (!eband_->setPlan(transformed_plan_)) {
           ROS_ERROR("Setting plan to Elastic Band method failed!");
@@ -205,7 +206,18 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       plan_start_end_counter_ = start_end_counts;
 
       // let eband refine the plan before starting continuous operation (to smooth sampling based plans)
-      eband_->optimizeBand();
+      if(!eband_->optimizeBand()){
+
+        ROS_DEBUG("optimizeBand failed, retrying .. ");
+        ROS_WARN("optimizeBand failed, Updating Costmap layers and waiting..");
+        costmap_ros_->updateMap();
+        boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
+
+        if (!eband_->optimizeBand()) {
+          ROS_ERROR("Setting plan to Elastic Band method failed! could not optimize band");
+          return false;
+        }
+      }
 
 
       // display result
@@ -321,10 +333,21 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       if(!eband_->optimizeBand())
       {
         ROS_WARN("Optimization failed - Band invalid - No controls availlable");
+        /// TODO possible solution to avoid it but it may be risky
+        // costmap_ros_->resetLayers();
+        /// if a first attempt didn't work try again after a small pause
+        boost::this_thread::sleep(boost::posix_time::milliseconds(200));
+        if(!eband_->optimizeBand())
+        {
+          if(eband_->getBand(current_band))
+            eband_visual_->publishBand("bubbles", current_band);
+
+          return false;
+        }
         // display current band
-        if(eband_->getBand(current_band))
-          eband_visual_->publishBand("bubbles", current_band);
-        return false;
+        // if(eband_->getBand(current_band))
+        //   eband_visual_->publishBand("bubbles", current_band);
+        // return false;
       }
 
       // get current Elastic Band and

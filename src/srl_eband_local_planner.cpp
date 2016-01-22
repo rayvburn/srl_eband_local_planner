@@ -861,7 +861,7 @@ bool SrlEBandPlanner::repairPlan(std::vector<geometry_msgs::PoseStamped> global_
     // close gaps and remove redundant bubbles
     if(!refineBand(band))
     {
-      ROS_DEBUG("Elastic Band is broken. Could not close gaps in band. Global replanning needed.");
+      ROS_DEBUG("Elastic Band is broken. Could not close gaps in band during optimize band. Global replanning needed.");
       return false;
     }
 

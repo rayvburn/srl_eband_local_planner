@@ -198,6 +198,8 @@ namespace srl_eband_local_planner{
       double acc_max_trans_, acc_max_rot_;
       double rotation_correction_threshold_; // We'll do rotation correction if we're at least this far from the goal
 
+      double integral_angular_;
+      double previous_angular_error_;
       // diff drive only parameters
       double bubble_velocity_multiplier_;
       double rotation_threshold_multiplier_;
