@@ -2317,11 +2317,13 @@ bool SrlEBandPlanner::repairPlan(std::vector<geometry_msgs::PoseStamped> global_
       }
 
       if(distance <= 0.0)
-      {
+      { /// TODO tentative fix, if we have already an initial portion of the band go on
+        if(tmp_band.size()) break;
+        else return false;
         // frame must not be immediately in collision -> otherwise calculation of gradient will later be invalid
         ROS_WARN("Calculation of Distance (%f) between bubble and nearest obstacle failed. Frame %d of %d in collision. Plan invalid", distance, i, ((int) plan.size()) );
         // TODO if frame in collision try to repair band instaed of aborting averything
-        return false;
+        // return false;
       }
 
 

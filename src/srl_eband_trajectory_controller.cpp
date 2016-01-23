@@ -1301,11 +1301,16 @@ bool SrlEBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goa
 {
   goal_reached = false;
   if (differential_drive_on_) {
-
+    bool res = false;
     if(!tracker_on_)
-      return getTwistDifferentialDrive(twist_cmd, goal_reached);
+      res = getTwistDifferentialDrive(twist_cmd, goal_reached);
     else
-      return getTwistUnicycle(twist_cmd, goal_reached);
+      res = getTwistUnicycle(twist_cmd, goal_reached);
+
+      if(isfinite(twist_cmd.linear.x) && isfinite(twist_cmd.angular.z))
+          return res;
+        else
+        return false;
 
   }
 

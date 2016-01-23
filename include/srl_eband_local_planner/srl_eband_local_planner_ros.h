@@ -168,7 +168,8 @@ namespace srl_eband_local_planner{
       bool initialized_;
       boost::mutex odom_mutex_; // mutex to lock odometry-callback while data is read from topic
 
-
+      bool optimize_band_;
+      int number_tentative_setting_band_;
       // methods
 
       /**

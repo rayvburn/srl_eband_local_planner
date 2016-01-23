@@ -58,6 +58,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       : costmap_ros_(NULL), tf_(NULL), initialized_(false)
     {
       // initialize planner
+      number_tentative_setting_band_ = 10;
       initialize(name, tf, costmap_ros);
     }
 
@@ -73,7 +74,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         // copy adress of costmap and Transform Listener (handed over from move_base)
         costmap_ros_ = costmap_ros;
         tf_ = tf;
-
+        optimize_band_ = true;
 
         // create Node Handle with name of plugin (as used in move_base for loading)
         ros::NodeHandle pn("~/" + name);
@@ -146,6 +147,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
 
       ROS_DEBUG("Reconfiguring Eband Planner");
       srlEBandLocalPlannerConfig config_int = config;
+      number_tentative_setting_band_ = config.number_tentative_setting_band_dyn;
       eband_->callbackDynamicReconfigure(config,level);
       eband_trj_ctrl_->callbackDynamicReconfigure(config,level);
       return;
@@ -185,20 +187,39 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         return false;
       }
 
+      /// Update Map
+      // costmap_ros_->updateMap();
+
       // set plan - as this is fresh from the global planner robot pose should be identical to start frame
       if(!eband_->setPlan(transformed_plan_))
       {
         // We've had some difficulty where the global planner keeps returning a valid path that runs through an obstacle
         // in the local costmap. See issue #5. Here we clear the local costmap and try one more time.
-        ROS_WARN("First attempt of setting plan failed, Resetting Costmap layers and waiting..");
-        costmap_ros_->resetLayers(); /// TODO Testing it!!!
-        // costmap_ros_->updateMap();
-        boost::this_thread::sleep(boost::posix_time::milliseconds(1000)); /// TODO Testing it!!!
+        // costmap_ros_->resetLayers(); /// TODO Testing it!!!
+        int k = 0;
+        bool plan_set = false;
+        while (!plan_set && k<number_tentative_setting_band_) {
 
-        if (!eband_->setPlan(transformed_plan_)) {
-          ROS_ERROR("Setting plan to Elastic Band method failed!");
-          return false;
+          ROS_WARN("Setting plan to Elastic Band method failed! Retrying to set plan #%d", k);
+          costmap_ros_->resetLayers();
+          plan_set = eband_->setPlan(transformed_plan_);
+          ROS_WARN("Setting plan done, result %d",plan_set);
+
+          k++;
         }
+
+        if(!plan_set){
+          ROS_ERROR("Setting plan to Elastic Band method failed!");
+          return plan_set;
+        }
+
+
+
+        // if (!eband_->setPlan(transformed_plan_)) {
+        //   ROS_ERROR("Setting plan to Elastic Band method failed!");
+        //   return false;
+        // }
+        //
       }
       ROS_DEBUG("Global plan set to elastic band for optimization");
 
@@ -206,12 +227,12 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       plan_start_end_counter_ = start_end_counts;
 
       // let eband refine the plan before starting continuous operation (to smooth sampling based plans)
-      if(!eband_->optimizeBand()){
+
+      if(!eband_->optimizeBand() && optimize_band_){
 
         ROS_DEBUG("optimizeBand failed, retrying .. ");
-        ROS_WARN("optimizeBand failed, Updating Costmap layers and waiting..");
         costmap_ros_->updateMap();
-        boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
+        // boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
 
         if (!eband_->optimizeBand()) {
           ROS_ERROR("Setting plan to Elastic Band method failed! could not optimize band");
@@ -330,14 +351,15 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       // update Elastic Band (react on obstacle from costmap, ...)
       ROS_DEBUG("Calling optimization method for elastic band");
       std::vector<srl_eband_local_planner::Bubble> current_band;
-      if(!eband_->optimizeBand())
+
+      if(!eband_->optimizeBand() && optimize_band_)
       {
         ROS_WARN("Optimization failed - Band invalid - No controls availlable");
         /// TODO possible solution to avoid it but it may be risky
         // costmap_ros_->resetLayers();
         /// if a first attempt didn't work try again after a small pause
         boost::this_thread::sleep(boost::posix_time::milliseconds(200));
-        if(!eband_->optimizeBand())
+        if(!eband_->optimizeBand() && optimize_band_)
         {
           if(eband_->getBand(current_band))
             eband_visual_->publishBand("bubbles", current_band);
@@ -351,7 +373,9 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       }
 
       // get current Elastic Band and
-      eband_->getBand(current_band);
+      if(eband_->getBand(current_band))
+        eband_visual_->publishBand("bubbles", current_band);
+
       // set it to the controller
       if(!eband_trj_ctrl_->setBand(current_band))
       {
