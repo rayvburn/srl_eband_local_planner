@@ -53,10 +53,11 @@ namespace hanp_local_planner {
         void initialize(std::string global_frame, tf::TransformListener* tf);
         bool prepare();
         double scoreTrajectory(base_local_planner::Trajectory &traj);
-        void generateTrajectory(double x, double y, double theta, double v, double w, base_local_planner::Trajectory& traj, bool dir);
+        void generateTrajectory(double x, double y, double theta, double v, double w, base_local_planner::Trajectory& traj, bool dir, bool not_pub);
         void setParams(double alpha_max, double d_low, double d_high, double beta,
             double min_scale, double predict_time, bool publish_predicted_human_markers, bool publish_curr_traj);
         bool publishTrajectory(base_local_planner::Trajectory &traj);
+
 
     private:
         ros::ServiceClient predict_humans_client_;

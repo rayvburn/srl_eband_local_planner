@@ -212,9 +212,6 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
           ROS_ERROR("Setting plan to Elastic Band method failed!");
           return plan_set;
         }
-
-
-
         // if (!eband_->setPlan(transformed_plan_)) {
         //   ROS_ERROR("Setting plan to Elastic Band method failed!");
         //   return false;
@@ -231,13 +228,27 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       if(!eband_->optimizeBand() && optimize_band_){
 
         ROS_DEBUG("optimizeBand failed, retrying .. ");
-        costmap_ros_->updateMap();
+        // costmap_ros_->updateMap();
         // boost::this_thread::sleep(boost::posix_time::milliseconds(1000));
+        int k = 0;
+        bool band_optimized = false;
+        while (!band_optimized && k<number_tentative_setting_band_) {
 
-        if (!eband_->optimizeBand()) {
-          ROS_ERROR("Setting plan to Elastic Band method failed! could not optimize band");
-          return false;
+          ROS_WARN("optimizeBand failed! Retrying to optimizeBand #%d", k);
+          costmap_ros_->resetLayers();
+          band_optimized = eband_->optimizeBand();
+          ROS_WARN("Setting optimizeBand done, result %d", band_optimized);
+          k++;
         }
+
+        if(!band_optimized){
+          ROS_ERROR("optimizeBand method failed!");
+          return band_optimized;
+        }
+        // if (!eband_->optimizeBand()) {
+        //   ROS_ERROR("Setting plan to Elastic Band method failed! could not optimize band");
+        //   return false;
+        // }
       }
 
 

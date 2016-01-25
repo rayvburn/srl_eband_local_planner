@@ -90,7 +90,8 @@ namespace hanp_local_planner
     }
 
     /// Generate a trajectory given the current position of the robot and the pair of (v,w).
-    void ContextCostFunction::generateTrajectory(double x, double y, double theta, double v, double w, base_local_planner::Trajectory& traj, bool dir){
+    void ContextCostFunction::generateTrajectory(double x, double y, double theta, double v, double w,
+          base_local_planner::Trajectory& traj, bool dir,  bool not_pub){
 
 
          //create a potential trajectory
@@ -127,7 +128,7 @@ namespace hanp_local_planner
         }
 
         ROS_DEBUG_NAMED("context_cost_function", "Trajectory created with %d points", (int)traj.getPointsSize());
-        if(publish_curr_trajectory_){
+        if(publish_curr_trajectory_ && not_pub){
           publishTrajectory(traj);
         }
 

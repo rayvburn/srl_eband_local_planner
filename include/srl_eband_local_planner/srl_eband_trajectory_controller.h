@@ -56,7 +56,7 @@
 
 // nav_msgs
 #include <nav_msgs/Odometry.h>
-
+#include <nav_msgs/Path.h>
 // geometry
 #include <angles/angles.h>
 #include <tf/tf.h>
@@ -176,6 +176,11 @@ namespace srl_eband_local_planner{
        */
       void callbackLaserScanReceived(const sensor_msgs::LaserScan& laserscan);
 
+      /**
+       * @brief publishLocalPlan, Publishing the final local path
+       */
+      void publishLocalPlan(base_local_planner::Trajectory local_traj);
+
 
     private:
 
@@ -184,6 +189,7 @@ namespace srl_eband_local_planner{
       boost::shared_ptr<SrlEBandVisualization> target_visual_; // pointer to visualization object
       ros::Subscriber sub_front_laser_;
       ros::Subscriber sub_rear_laser_;
+      ros::Publisher pub_local_path_;
       dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig> *dr_server_;
       control_toolbox::Pid pid_;
 
@@ -197,9 +203,10 @@ namespace srl_eband_local_planner{
       double tolerance_trans_, tolerance_rot_, tolerance_timeout_;
       double acc_max_trans_, acc_max_rot_;
       double rotation_correction_threshold_; // We'll do rotation correction if we're at least this far from the goal
-
+      std::string local_path_topic_;
       double integral_angular_;
       double previous_angular_error_;
+      int path_id_;
       // diff drive only parameters
       double bubble_velocity_multiplier_;
       double rotation_threshold_multiplier_;

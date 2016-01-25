@@ -63,6 +63,7 @@ SrlEBandTrajectoryCtrl::SrlEBandTrajectoryCtrl(std::string name, costmap_2d::Cos
   num_points_rear_robot_ = 0;
   front_laser_topic_ = "/spencer/sensors/laser_front/echo0";
   rear_laser_topic_ = "/spencer/sensors/laser_rear/echo0";
+  local_path_topic_ = "/move_base_node/HANPLocalPlanner/local_plan";
   backward_motion_on_ - true;
   robot_frame_ = "base_link_flipped";
   limit_vel_based_laser_points_density_= true;
@@ -155,7 +156,6 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     // create Node Handle with name of plugin (as used in move_base for loading)
     ros::NodeHandle node_private("~/" + name);
 
-
     // read parameters from parameter server
     node_private.param("max_vel_lin", max_vel_lin_, 1.0);
     node_private.param("max_vel_th", max_vel_th_, 1.57);
@@ -195,12 +195,13 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     node_private.getParam("front_laser_topic", this->front_laser_topic_);
     node_private.getParam("rear_laser_topic", this->rear_laser_topic_);
     node_private.getParam("backward_motion_on", this->backward_motion_on_);
-
+    node_private.getParam("local_path_topic", this->local_path_topic_);
     node_private.getParam("max_translational_vel_due_to_laser_points_density", this->max_translational_vel_due_to_laser_points_density_);
 
     /// define subscribers
     sub_front_laser_ =  node_private.subscribe(front_laser_topic_, 1, &SrlEBandTrajectoryCtrl::callbackLaserScanReceived, this);
     sub_rear_laser_  =  node_private.subscribe(rear_laser_topic_, 1, &SrlEBandTrajectoryCtrl::callbackLaserScanReceived, this);
+    pub_local_path_ = node_private.advertise<nav_msgs::Path>(local_path_topic_, 1);
 
     // Ctrl_rate, k_prop, max_vel_lin, max_vel_th, tolerance_trans, tolerance_rot, min_in_place_vel_th
     in_final_goal_turn_ = false;
@@ -238,7 +239,7 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     theta_initial_band_ = 0;
 
     tracker_on_ = false;
-
+    path_id_ = 0;
     limit_vel_based_on_curvature_ = true;
 
     context_cost_function_ =  new hanp_local_planner::ContextCostFunction();
@@ -250,6 +251,39 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     ROS_WARN("This planner has already been initialized, doing nothing.");
   }
 }
+
+
+/// =======================================================================================
+/// publishLocalPlan
+/// =======================================================================================
+void SrlEBandTrajectoryCtrl::publishLocalPlan(base_local_planner::Trajectory local_traj){
+
+  int n_traj_points = (int)local_traj.getPointsSize();
+  nav_msgs::Path path_to_publish;
+  path_to_publish.header.frame_id = planner_frame_;
+  path_to_publish.header.stamp = ros::Time();
+  path_to_publish.header.seq = path_id_++;
+
+  path_to_publish.poses.resize(n_traj_points);
+
+  for (int i=0; i<n_traj_points; i++){
+    double xi=0;
+    double yi=0;
+    double thi=0;
+    local_traj.getPoint(i, xi, yi, thi);
+    path_to_publish.poses[i].header.frame_id = planner_frame_;
+    path_to_publish.poses[i].header.stamp = ros::Time();
+    path_to_publish.poses[i].header.seq = i;
+    path_to_publish.poses[i].pose.position.x = xi;
+    path_to_publish.poses[i].pose.position.y = yi;
+    path_to_publish.poses[i].pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0,0,thi);
+  }
+
+  pub_local_path_.publish(path_to_publish);
+  ROS_DEBUG("Local Path published to %s with %d points", local_path_topic_.c_str(), n_traj_points);
+  return;
+}
+
 
 /// =======================================================================================
 /// callbackLaserScanReceived(const sensor_msgs::LaserScan& laserscan), read laser scan
@@ -1263,17 +1297,27 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
       tf::Quaternion qcurr_flipped = transform_flipped.getRotation();
       qcurr_flipped.normalize();
       double robot_yaw = tf::getYaw(qcurr_flipped);
-
-
+      // generate scaling factores
       base_local_planner::Trajectory local_path;
       context_cost_function_->generateTrajectory(x_rob, y_rob, robot_yaw,
-          linear_velocity, angular_velocity, local_path, backward_motion_on_);
-
+          linear_velocity, angular_velocity, local_path, backward_motion_on_, false);
       double trajectory_scale = context_cost_function_->scoreTrajectory(local_path);
+
+
 
       if(trajectory_scale<1.0){
         linear_velocity =  trajectory_scale * linear_velocity;
         angular_velocity = trajectory_scale * angular_velocity;
+        /// generate and publish new local trajectory which implements the human awareness
+        base_local_planner::Trajectory scaled_local_path;
+        context_cost_function_->generateTrajectory(x_rob, y_rob, robot_yaw,
+            linear_velocity, angular_velocity, scaled_local_path, backward_motion_on_, true);
+
+        publishLocalPlan(scaled_local_path);
+
+      }else{
+
+        publishLocalPlan(local_path);
       }
 
     }
