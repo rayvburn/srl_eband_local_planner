@@ -57,6 +57,7 @@ SrlEBandTrajectoryCtrl::SrlEBandTrajectoryCtrl(std::string name, costmap_2d::Cos
   controller_frequency_ = 6.66;
   curvature_guarding_thrs_ = 0.65;
   warning_robot_radius_ = 2.0;
+  min_vel_limited_curvature_ = 0.35;
   front_laser_frame_ = "laser_front_link";
   rear_laser_frame_ = "laser_rear_link";
   num_points_front_robot_ = 0;
@@ -118,6 +119,7 @@ void SrlEBandTrajectoryCtrl::callbackDynamicReconfigure(srl_eband_local_planner:
   acc_max_trans_ = config.max_translational_acceleration_dyn;
   acc_max_rot_ = config.max_rotational_acceleration_dyn;
   limit_vel_based_on_curvature_ = config.limit_vel_based_on_curvature;
+  min_vel_limited_curvature_ = config.min_vel_limited_curvature;
   limit_vel_based_laser_points_density_ = config.limit_vel_based_laser_points_density_dyn;
   max_translational_vel_due_to_laser_points_density_ = config.max_translational_vel_due_to_laser_points_density_dyn;
   warning_robot_angle_ = config.warning_robot_angle_dyn;
@@ -1073,7 +1075,10 @@ bool SrlEBandTrajectoryCtrl::limitVelocityCurvature(double &curr_max_vel){
         }
       }
 
-      ROS_DEBUG("Final Max Velocity %f", curr_max_vel);
+      if(curr_max_vel<min_vel_limited_curvature_)
+        curr_max_vel = min_vel_limited_curvature_;
+
+      ROS_DEBUG("Final Max Velocity after limiting the curvature %f", curr_max_vel);
 
       return true;
 }

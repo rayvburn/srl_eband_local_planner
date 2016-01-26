@@ -249,7 +249,7 @@ namespace srl_eband_local_planner{
       double controller_frequency_;
       double curvature_guarding_thrs_;
       bool limit_vel_based_on_curvature_;
-
+      double min_vel_limited_curvature_;
       bool limit_vel_based_laser_points_density_;
       int num_points_front_robot_;
       int num_points_rear_robot_;
