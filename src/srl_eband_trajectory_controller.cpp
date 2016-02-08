@@ -524,12 +524,12 @@ geometry_msgs::PoseStamped SrlEBandTrajectoryCtrl::transformPose(geometry_msgs::
     try{
         // will transform data in the goal_frame into the planner_frame_
       //  tf_listener->waitForTransform( planner_frame_, init_pose.header.frame_id, ros::Time::now(), ros::Duration(0.40));
-       tf_listener->lookupTransform(  planner_frame_, init_pose.header.frame_id, ros::Time::now(), transform);
+       tf_listener->lookupTransform(  planner_frame_, init_pose.header.frame_id, ros::Time(0), transform);
 
     }
-    catch(tf::TransformException){
+    catch(tf::TransformException e){
 
-        ROS_ERROR("Failed to transform the given pose in the Planner frame_id, planner frame %s, inititpose frame %s", planner_frame_.c_str(), init_pose.header.frame_id.c_str());
+        ROS_ERROR("Failed to transform the given pose in the Planner frame_id, planner frame %s, inititpose frame %s, reason %s", planner_frame_.c_str(), init_pose.header.frame_id.c_str(), e.what());
     }
 
     tf::Pose source;
