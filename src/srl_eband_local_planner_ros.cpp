@@ -44,6 +44,7 @@
 // abstract class from which our plugin inherits
 #include <nav_core/base_local_planner.h>
 
+using namespace spencer_control_msgs;
 // register this planner as a BaseGlobalPlanner plugin
 // (see http://www.ros.org/wiki/pluginlib/Tutorials/Writing%20and%20Using%20a%20Simple%20Plugin)
 // PLUGINLIB_DECLARE_CLASS(srl_eband_local_planner, SrlEBandPlannerROS, srl_eband_local_planner::SrlEBandPlannerROS, nav_core::BaseLocalPlanner)
@@ -59,6 +60,8 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
     {
       // initialize planner
       number_tentative_setting_band_ = 10;
+      collision_error_ = false;
+      collision_warning_ = false;
       initialize(name, tf, costmap_ros);
     }
 
@@ -91,6 +94,10 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         // advertise topics (adapted global plan and predicted local trajectory)
         g_plan_pub_ = pn.advertise<nav_msgs::Path>("global_plan", 1);
         l_plan_pub_ = pn.advertise<nav_msgs::Path>("local_plan", 1);
+
+        sub_current_measured_velocity_ = pn.subscribe("/spencer/control/measured_velocity", 5, &SrlEBandPlannerROS::readVelocityCB, this);
+        frontLaserCollisionStatus_listener_ = pn.subscribe("/spencer/control/collision/aggregated_front", 1, &SrlEBandPlannerROS::checkFrontLaserCollisionStatus, this);
+        rearLaserCollisionStatus_listener_  = pn.subscribe("/spencer/control/collision/aggregated_rear", 1, &SrlEBandPlannerROS::checkRearLaserCollisionStatus, this);
 
 
         // subscribe to topics (to get odometry information, we need to get a handle to the topic in the global namespace)
@@ -139,6 +146,48 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       }
     }
 
+
+    /// ==================================================================================
+    /// checkFrontLaserCollisionStatus(const CollisionStatus& collisionStatus)
+    /// Method to set the global Goal
+    /// ==================================================================================
+    void SrlEBandPlannerROS::checkFrontLaserCollisionStatus(const CollisionStatus::ConstPtr& msg) {
+
+        collision_error_    = msg->collisionError;
+        collision_warning_  = msg->collisionWarning;
+        // ROS_DEBUG("Srl Global Planner checking collision status, Error: %d, Warning: %d", collision_error_, collision_warning_);
+        return;
+
+    }
+
+    /// ==================================================================================
+    /// checkRearLaserCollisionStatus(const CollisionStatus& collisionStatus)
+    /// Method to set the global Goal
+    /// ==================================================================================
+    void SrlEBandPlannerROS::checkRearLaserCollisionStatus(const CollisionStatus::ConstPtr& msg){
+
+        collision_error_    = msg->collisionError;
+        collision_warning_  = msg->collisionWarning;
+        // ROS_DEBUG("Srl Global Planner checking collision status, Error: %d, Warning: %d", collision_error_, collision_warning_);
+        return;
+    }
+
+    /// ============================================================================
+    // readVelocityCB, call back to read the current robot velocity
+    /// ============================================================================
+    void SrlEBandPlannerROS::readVelocityCB(const geometry_msgs::TwistStamped::ConstPtr& msg){
+
+      double v = msg->twist.linear.x;
+      double w = msg->twist.angular.z;
+      // ROS_DEBUG_NAMED("Simple Head Behaviour", "Reading vel (%f, %f)", v, w);
+      if(fabs(v)<EPS && fabs(w)<EPS){
+        robot_still_position_ = true;
+        // ROS_DEBUG_NAMED("Simple Head Behaviour","Robot still vel (%f, %f)", v, w);
+      }else{
+        robot_still_position_ = false;
+      }
+      return;
+    }
 
     /// =======================================================================================
     /// callbackDynamicReconfigure
@@ -270,6 +319,12 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       if(!initialized_)
       {
         ROS_ERROR("This planner has not been initialized, please call initialize() before using this planner");
+        return false;
+      }
+
+      if(robot_still_position_ && collision_error_){
+
+        ROS_ERROR("The local planner can't go on for a collision error, unstuck Behaviour");
         return false;
       }
 

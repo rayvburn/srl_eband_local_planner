@@ -38,6 +38,7 @@ endif()
 set(CMAKE_BUILD_TYPE Debug)
 find_package(catkin REQUIRED
   COMPONENTS
+    spencer_control_msgs
     base_local_planner
     cmake_modules
     control_toolbox
@@ -69,6 +70,7 @@ generate_dynamic_reconfigure_options(
 
 catkin_package(
   CATKIN_DEPENDS
+    spencer_control_msgs
     base_local_planner
     control_toolbox
     costmap_2d

@@ -71,6 +71,10 @@
 #include <boost/bind.hpp>
 #include <boost/shared_ptr.hpp>
 #include <srl_eband_local_planner/srlEBandLocalPlannerConfig.h>
+#include <spencer_control_msgs/CollisionStatus.h>
+#define EPS 0.01
+
+using namespace spencer_control_msgs;
 
 namespace srl_eband_local_planner{
 
@@ -133,6 +137,14 @@ namespace srl_eband_local_planner{
       void callbackDynamicReconfigure(srl_eband_local_planner::srlEBandLocalPlannerConfig &config, uint32_t level);
 
 
+      void checkFrontLaserCollisionStatus(const CollisionStatus::ConstPtr& msg);
+
+
+      void checkRearLaserCollisionStatus(const CollisionStatus::ConstPtr& msg);
+
+
+      void readVelocityCB(const geometry_msgs::TwistStamped::ConstPtr& msg);
+
     private:
 
       // pointer to external objects (do NOT delete object)
@@ -151,6 +163,9 @@ namespace srl_eband_local_planner{
       ros::Publisher l_plan_pub_; ///<@brief publishes prediction for local commands
       ros::Subscriber odom_sub_; ///<@brief subscribes to the odometry topic in global namespace
 
+      ros::Subscriber  sub_current_measured_velocity_;
+      ros::Subscriber  frontLaserCollisionStatus_listener_;
+      ros::Subscriber  rearLaserCollisionStatus_listener_;
       // data
       nav_msgs::Odometry base_odom_;
       std::vector<geometry_msgs::PoseStamped> global_plan_; // plan as handed over from move_base or global planner
@@ -172,6 +187,9 @@ namespace srl_eband_local_planner{
       int number_tentative_setting_band_;
       // methods
 
+      bool collision_error_;
+      bool collision_warning_;
+      bool robot_still_position_;
       /**
        * @brief Odometry-Callback: function is called whenever a new odometry msg is published on that topic
        * @param Pointer to the received message
