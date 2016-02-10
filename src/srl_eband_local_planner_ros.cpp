@@ -60,8 +60,10 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
     {
       // initialize planner
       number_tentative_setting_band_ = 10;
-      collision_error_ = false;
-      collision_warning_ = false;
+      collision_error_rear_ = false;
+      collision_error_front_ = false;
+      collision_warning_rear_ = false;
+      collision_warning_front_ = false;
       initialize(name, tf, costmap_ros);
     }
 
@@ -153,8 +155,8 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
     /// ==================================================================================
     void SrlEBandPlannerROS::checkFrontLaserCollisionStatus(const CollisionStatus::ConstPtr& msg) {
 
-        collision_error_    = msg->collisionError;
-        collision_warning_  = msg->collisionWarning;
+        collision_error_front_    = msg->collisionError;
+        collision_warning_front_  = msg->collisionWarning;
         // ROS_DEBUG("Srl Global Planner checking collision status, Error: %d, Warning: %d", collision_error_, collision_warning_);
         return;
 
@@ -166,8 +168,8 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
     /// ==================================================================================
     void SrlEBandPlannerROS::checkRearLaserCollisionStatus(const CollisionStatus::ConstPtr& msg){
 
-        collision_error_    = msg->collisionError;
-        collision_warning_  = msg->collisionWarning;
+        collision_error_rear_   = msg->collisionError;
+        collision_warning_rear_  = msg->collisionWarning;
         // ROS_DEBUG("Srl Global Planner checking collision status, Error: %d, Warning: %d", collision_error_, collision_warning_);
         return;
     }
@@ -322,10 +324,11 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         return false;
       }
 
-      if(robot_still_position_ && collision_error_){
+      if(collision_error_front_ || collision_error_rear_ && robot_still_position_){
 
         ROS_ERROR("The local planner can't go on for a collision error, unstuck Behaviour");
         return false;
+
       }
 
       // instantiate local variables

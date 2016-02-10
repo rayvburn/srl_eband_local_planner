@@ -187,8 +187,11 @@ namespace srl_eband_local_planner{
       int number_tentative_setting_band_;
       // methods
 
-      bool collision_error_;
-      bool collision_warning_;
+      bool collision_error_front_;
+      bool collision_error_rear_;
+      bool collision_warning_front_;
+      bool collision_warning_rear_;
+
       bool robot_still_position_;
       /**
        * @brief Odometry-Callback: function is called whenever a new odometry msg is published on that topic
