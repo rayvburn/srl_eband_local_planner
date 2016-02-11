@@ -64,6 +64,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       collision_error_front_ = false;
       collision_warning_rear_ = false;
       collision_warning_front_ = false;
+      dir_planning_ = -1; // starting Backward
       initialize(name, tf, costmap_ros);
     }
 
@@ -100,6 +101,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         sub_current_measured_velocity_ = pn.subscribe("/spencer/control/measured_velocity", 5, &SrlEBandPlannerROS::readVelocityCB, this);
         frontLaserCollisionStatus_listener_ = pn.subscribe("/spencer/control/collision/aggregated_front", 1, &SrlEBandPlannerROS::checkFrontLaserCollisionStatus, this);
         rearLaserCollisionStatus_listener_  = pn.subscribe("/spencer/control/collision/aggregated_rear", 1, &SrlEBandPlannerROS::checkRearLaserCollisionStatus, this);
+        sub_current_driving_direction_ = pn.subscribe("/spencer/nav/current_driving_direction", 1, &SrlEBandPlannerROS::SetDrivingDirection, this);
 
 
         // subscribe to topics (to get odometry information, we need to get a handle to the topic in the global namespace)
@@ -149,13 +151,31 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
     }
 
 
+    /// ========================================================================================
+    /// SetDrivingDirection
+    /// Set The correct Driving Direction
+    /// ========================================================================================
+    void SrlEBandPlannerROS::SetDrivingDirection(const std_msgs::Bool::ConstPtr& msg){
+      bool forward = false;
+      forward = msg->data;
+      if(!forward){
+        ROS_DEBUG_THROTTLE(5, "Backward direction set");
+        dir_planning_=-1*fabs(dir_planning_);
+      }else
+      {
+        ROS_DEBUG_THROTTLE(5, "Forward  direction set");
+        dir_planning_=1*fabs(dir_planning_);
+      }
+      return;
+    }
+
     /// ==================================================================================
     /// checkFrontLaserCollisionStatus(const CollisionStatus& collisionStatus)
     /// Method to set the global Goal
     /// ==================================================================================
     void SrlEBandPlannerROS::checkFrontLaserCollisionStatus(const CollisionStatus::ConstPtr& msg) {
 
-        collision_error_front_    = msg->collisionError;
+        collision_error_front_    = msg->collisionError && (dir_planning_>0);
         collision_warning_front_  = msg->collisionWarning;
         // ROS_DEBUG("Srl Global Planner checking collision status, Error: %d, Warning: %d", collision_error_, collision_warning_);
         return;
@@ -168,7 +188,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
     /// ==================================================================================
     void SrlEBandPlannerROS::checkRearLaserCollisionStatus(const CollisionStatus::ConstPtr& msg){
 
-        collision_error_rear_   = msg->collisionError;
+        collision_error_rear_   = msg->collisionError && (dir_planning_<0);
         collision_warning_rear_  = msg->collisionWarning;
         // ROS_DEBUG("Srl Global Planner checking collision status, Error: %d, Warning: %d", collision_error_, collision_warning_);
         return;

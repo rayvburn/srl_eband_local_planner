@@ -58,7 +58,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <visualization_msgs/Marker.h>
-
+#include <std_msgs/Bool.h>
 // transforms
 #include <angles/angles.h>
 #include <tf/tf.h>
@@ -136,6 +136,12 @@ namespace srl_eband_local_planner{
 
       void callbackDynamicReconfigure(srl_eband_local_planner::srlEBandLocalPlannerConfig &config, uint32_t level);
 
+      /**
+      * @brief  Set Driving Direction
+      * @return void
+      */
+      void SetDrivingDirection(const std_msgs::Bool::ConstPtr& msg);
+
 
       void checkFrontLaserCollisionStatus(const CollisionStatus::ConstPtr& msg);
 
@@ -162,7 +168,7 @@ namespace srl_eband_local_planner{
       ros::Publisher g_plan_pub_; ///<@brief publishes modified global plan
       ros::Publisher l_plan_pub_; ///<@brief publishes prediction for local commands
       ros::Subscriber odom_sub_; ///<@brief subscribes to the odometry topic in global namespace
-
+      ros::Subscriber sub_current_driving_direction_;
       ros::Subscriber  sub_current_measured_velocity_;
       ros::Subscriber  frontLaserCollisionStatus_listener_;
       ros::Subscriber  rearLaserCollisionStatus_listener_;
@@ -178,7 +184,7 @@ namespace srl_eband_local_planner{
       boost::shared_ptr<SrlEBandTrajectoryCtrl> eband_trj_ctrl_;
 
       bool goal_reached_;
-
+      int dir_planning_;
       // flags
       bool initialized_;
       boost::mutex odom_mutex_; // mutex to lock odometry-callback while data is read from topic
