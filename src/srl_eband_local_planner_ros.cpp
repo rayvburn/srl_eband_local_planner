@@ -132,6 +132,8 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         // set initialized flag
         initialized_ = true;
 
+        dir_planning_ = -1;
+
 
         dr_server_ = new dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig>(pn);
 
@@ -175,7 +177,8 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
     /// ==================================================================================
     void SrlEBandPlannerROS::checkFrontLaserCollisionStatus(const CollisionStatus::ConstPtr& msg) {
 
-        collision_error_front_    = msg->collisionError && (dir_planning_>0);
+        collision_error_front_    = msg->collisionError;
+        //collision_error_front_    = msg->collisionError && (dir_planning_>0);
         collision_warning_front_  = msg->collisionWarning;
         // ROS_DEBUG("Srl Global Planner checking collision status, Error: %d, Warning: %d", collision_error_, collision_warning_);
         return;
@@ -188,7 +191,8 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
     /// ==================================================================================
     void SrlEBandPlannerROS::checkRearLaserCollisionStatus(const CollisionStatus::ConstPtr& msg){
 
-        collision_error_rear_   = msg->collisionError && (dir_planning_<0);
+        collision_error_rear_   = msg->collisionError;
+        //collision_error_rear_   = msg->collisionError && (dir_planning_<0);
         collision_warning_rear_  = msg->collisionWarning;
         // ROS_DEBUG("Srl Global Planner checking collision status, Error: %d, Warning: %d", collision_error_, collision_warning_);
         return;
@@ -350,6 +354,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         return false;
 
       }
+//        ROS_INFO("LocalPlanner could not generate a path, collision error on, %d, %d, %d, %d", collision_error_rear_, collision_error_front_, robot_still_position_,dir_planning_);
 
       // instantiate local variables
       //std::vector<geometry_msgs::PoseStamped> local_plan;
