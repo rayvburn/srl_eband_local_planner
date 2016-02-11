@@ -324,7 +324,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         return false;
       }
 
-      if(collision_error_front_ || collision_error_rear_ && robot_still_position_){
+      if( (collision_error_front_ || collision_error_rear_) && robot_still_position_){
 
         ROS_ERROR("The local planner can't go on for a collision error, unstuck Behaviour");
         return false;
