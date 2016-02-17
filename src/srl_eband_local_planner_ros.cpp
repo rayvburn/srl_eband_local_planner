@@ -177,8 +177,8 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
              srl_eband_local_planner::EnableObstacleLayer::Response &res)
     {
         enable_obstacle_layer_ = req.enable;
-        ROS_INFO("Service enableObstacleLayer called %d", enable_obstacle_layer_);
-        ROS_INFO("Service enableObstacleLayer called, ending");
+        ROS_DEBUG("Service enableObstacleLayer called %d", enable_obstacle_layer_);
+        ROS_DEBUG("Service enableObstacleLayer called, ending");
         res.enabled = enable_obstacle_layer_;
         return true;
     }
@@ -195,9 +195,9 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
              srl_eband_local_planner::EnableSocialLayer::Response &res)
     {
         enable_social_layer_ = req.enable;
-        ROS_INFO("Service enableSocialLayer called %d",
+        ROS_DEBUG("Service enableSocialLayer called %d",
                     enable_social_layer_);
-        ROS_INFO("Service enableSocialLayer call finished");
+        ROS_DEBUG("Service enableSocialLayer call finished");
         res.enabled = enable_social_layer_;
         return true;
     }
@@ -207,7 +207,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
     /// ========================================================================
     bool SrlEBandPlannerROS::setCostmapsLayers(){
 
-        ROS_INFO("Set costmap layers, %d %d", enable_social_layer_,
+        ROS_DEBUG("Set costmap layers, %d %d", enable_social_layer_,
          enable_obstacle_layer_);
 
 
@@ -259,8 +259,8 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
           ROS_INFO("Enabling Social layer in srl_eband_local_planner");
         }
 
-        ROS_INFO("Setting costmap layers ended");
-        
+        ROS_DEBUG("Setting costmap layers ended");
+
         return true;
     }
 

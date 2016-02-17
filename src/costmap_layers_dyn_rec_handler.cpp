@@ -32,8 +32,6 @@ costmapLayersDynRecHandler::costmapLayersDynRecHandler(const ros::NodeHandle& no
 
 costmapLayersDynRecHandler::~costmapLayersDynRecHandler(){
 
-
-
 }
 
 /// ==================================================================================
