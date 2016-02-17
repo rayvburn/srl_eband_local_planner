@@ -64,6 +64,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       collision_error_front_ = false;
       collision_warning_rear_ = false;
       collision_warning_front_ = false;
+      check_costmap_layers_ = false;
       dir_planning_ = -1; // starting Backward
       initialize(name, tf, costmap_ros);
     }
@@ -103,6 +104,9 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         rearLaserCollisionStatus_listener_  = pn.subscribe("/spencer/control/collision/aggregated_rear", 1, &SrlEBandPlannerROS::checkRearLaserCollisionStatus, this);
         sub_current_driving_direction_ = pn.subscribe("/spencer/nav/current_driving_direction", 1, &SrlEBandPlannerROS::SetDrivingDirection, this);
 
+        pn.param("check_costmap_layers", check_costmap_layers_, false);
+
+
 
         // subscribe to topics (to get odometry information, we need to get a handle to the topic in the global namespace)
         ros::NodeHandle gn;
@@ -134,13 +138,25 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
 
         dir_planning_ = -1;
 
-
         dr_server_ = new dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig>(pn);
 
         dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig>::CallbackType cb = boost::bind(
           &SrlEBandPlannerROS::callbackDynamicReconfigure, this, _1, _2);
 
         dr_server_->setCallback(cb);
+
+        this->costmap_layers_handler_ = new costmapLayersDynRecHandler(pn);
+
+        initial_social_range_ = costmap_layers_handler_->getSocialLayerMaxRange();
+
+        service_enable_social_layer_ =  pn.advertiseService("enable_social_layer", &SrlEBandPlannerROS::enableSocialLayer, this);
+
+        service_enable_obstacle_layer_ =  pn.advertiseService("enable_obstacle_layer", &SrlEBandPlannerROS::enableObstacleLayer, this);
+
+        enable_social_layer_ = true;
+
+        enable_obstacle_layer_ = true;
+
 
         // this is only here to make this process visible in the rxlogger right from the start
         ROS_DEBUG("Elastic Band plugin initialized.");
@@ -150,6 +166,102 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       {
         ROS_WARN("This planner has already been initialized, doing nothing.");
       }
+    }
+
+
+    /// ========================================================================================
+    /// SetDrivingDirection
+    /// Set The correct Driving Direction
+    /// ========================================================================================
+    bool SrlEBandPlannerROS::enableObstacleLayer(srl_eband_local_planner::EnableObstacleLayer::Request  &req,
+             srl_eband_local_planner::EnableObstacleLayer::Response &res)
+    {
+        enable_obstacle_layer_ = req.enable;
+        ROS_INFO("Service enableObstacleLayer called %d", enable_obstacle_layer_);
+        ROS_INFO("Service enableObstacleLayer called, ending");
+        res.enabled = enable_obstacle_layer_;
+        return true;
+    }
+
+
+
+
+
+    /// ========================================================================================
+    /// SetDrivingDirection
+    /// Set The correct Driving Direction
+    /// ========================================================================================
+    bool SrlEBandPlannerROS::enableSocialLayer(srl_eband_local_planner::EnableSocialLayer::Request  &req,
+             srl_eband_local_planner::EnableSocialLayer::Response &res)
+    {
+        enable_social_layer_ = req.enable;
+        ROS_INFO("Service enableSocialLayer called %d",
+                    enable_social_layer_);
+        ROS_INFO("Service enableSocialLayer call finished");
+        res.enabled = enable_social_layer_;
+        return true;
+    }
+
+    /// ========================================================================
+    /// setCostmapsLayers
+    /// ========================================================================
+    bool SrlEBandPlannerROS::setCostmapsLayers(){
+
+        ROS_INFO("Set costmap layers, %d %d", enable_social_layer_,
+         enable_obstacle_layer_);
+
+
+        if(costmap_layers_handler_->isObstacleLayerEnabled() &&
+              !enable_obstacle_layer_){
+          if(!costmap_layers_handler_->enableObstacleLayer(false))
+          {
+            ROS_ERROR("Could not plan due to issues during disabling of the Obstacle layer");
+            costmap_layers_handler_->enableObstacleLayer(true);
+            return false;
+          }
+          ROS_INFO("Disabling Obstacle layer in srl_eband_local_planner");
+        }
+
+
+        if(!costmap_layers_handler_->isObstacleLayerEnabled() &&
+              enable_obstacle_layer_)
+        {
+          if(!costmap_layers_handler_->enableObstacleLayer(true))
+          {
+            ROS_ERROR("Could not plan due to issues during enabling of the Obstacle layer");
+            costmap_layers_handler_->enableObstacleLayer(false);
+            return false;
+          }
+          ROS_INFO("Enabling Obstacle layer in srl_eband_local_planner");
+        }
+
+
+        if(costmap_layers_handler_->isSocialLayerEnabled() &&
+              !enable_social_layer_){
+          if(!costmap_layers_handler_->enableSocialLayer(false))
+          {
+            ROS_ERROR("Could not plan due to issues during disabling of the Social layer");
+            costmap_layers_handler_->enableSocialLayer(true);
+            return false;
+          }
+          ROS_INFO("Disabling Social layer in srl_eband_local_planner");
+        }
+
+        if(!costmap_layers_handler_->isSocialLayerEnabled() &&
+              enable_social_layer_)
+        {
+          if(!costmap_layers_handler_->enableSocialLayer(true))
+          {
+            ROS_ERROR("Could not plan due to issues during enabling of the Social layer");
+            costmap_layers_handler_->enableSocialLayer(false);
+            return false;
+          }
+          ROS_INFO("Enabling Social layer in srl_eband_local_planner");
+        }
+
+        ROS_INFO("Setting costmap layers ended");
+        
+        return true;
     }
 
 
@@ -223,6 +335,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       ROS_DEBUG("Reconfiguring Eband Planner");
       srlEBandLocalPlannerConfig config_int = config;
       number_tentative_setting_band_ = config.number_tentative_setting_band_dyn;
+      check_costmap_layers_ = config.check_costmap_layers_dyn;
       eband_->callbackDynamicReconfigure(config,level);
       eband_trj_ctrl_->callbackDynamicReconfigure(config,level);
       return;
@@ -354,6 +467,12 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         return false;
 
       }
+
+
+      if(check_costmap_layers_)
+        setCostmapsLayers();
+
+
 //        ROS_INFO("LocalPlanner could not generate a path, collision error on, %d, %d, %d, %d", collision_error_rear_, collision_error_front_, robot_still_position_,dir_planning_);
 
       // instantiate local variables

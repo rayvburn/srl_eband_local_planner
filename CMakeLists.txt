@@ -55,6 +55,7 @@ find_package(catkin REQUIRED
     dynamic_reconfigure
 		global_planner
 		cmake_modules
+    message_generation
 )
 
 find_package(Eigen REQUIRED)
@@ -67,6 +68,19 @@ include_directories(
 
 generate_dynamic_reconfigure_options(
   cfg/srl_eband_plannerRos.cfg
+)
+
+add_service_files(
+  DIRECTORY
+    srv
+  FILES
+    EnableSocialLayer.srv
+    EnableObstacleLayer.srv
+)
+
+generate_messages(
+    DEPENDENCIES
+        std_msgs
 )
 
 catkin_package(
@@ -87,9 +101,12 @@ catkin_package(
     tf_conversions
 		global_planner
 		cmake_modules
+    message_runtime
   INCLUDE_DIRS include
   LIBRARIES srl_eband_local_planner
 )
+
+
 
 if(NOT CMAKE_BUILD_TYPE MATCHES Debug)
 # Disable debug and info-level logging statements in release mode
@@ -107,11 +124,11 @@ add_library(srl_eband_local_planner
   src/srl_eband_visualization.cpp
   src/srl_eband_trajectory_controller.cpp
 	src/context_cost_function.cpp
+  src/costmap_layers_dyn_rec_handler.cpp
 )
 
 # add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_gencfg)
-add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS})
-
+add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(srl_eband_local_planner ${catkin_LIBRARIES})
 
 install(

@@ -48,6 +48,10 @@
 #include <srl_eband_local_planner/conversions_and_types.h>
 #include <srl_eband_local_planner/srl_eband_visualization.h>
 #include <srl_eband_local_planner/srl_eband_trajectory_controller.h>
+#include <srl_eband_local_planner/costmap_layers_dyn_rec_handler.h>
+// service to handle the costmap_2d layers
+#include <srl_eband_local_planner/EnableSocialLayer.h>
+#include <srl_eband_local_planner/EnableObstacleLayer.h>
 
 // local planner specific classes which provide some macros
 #include <base_local_planner/goal_functions.h>
@@ -151,6 +155,15 @@ namespace srl_eband_local_planner{
 
       void readVelocityCB(const geometry_msgs::TwistStamped::ConstPtr& msg);
 
+
+      bool enableSocialLayer(srl_eband_local_planner::EnableSocialLayer::Request  &req,
+               srl_eband_local_planner::EnableSocialLayer::Response &res);
+
+      bool enableObstacleLayer(srl_eband_local_planner::EnableObstacleLayer::Request  &req,
+               srl_eband_local_planner::EnableObstacleLayer::Response &res);
+
+      bool setCostmapsLayers();
+
     private:
 
       // pointer to external objects (do NOT delete object)
@@ -158,6 +171,8 @@ namespace srl_eband_local_planner{
       tf::TransformListener* tf_; ///<@brief pointer to Transform Listener
 
       dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig> *dr_server_;
+      ros::ServiceServer service_enable_social_layer_;
+      ros::ServiceServer service_enable_obstacle_layer_;
 
 
       // parameters
@@ -192,12 +207,16 @@ namespace srl_eband_local_planner{
       bool optimize_band_;
       int number_tentative_setting_band_;
       // methods
-
+      // methods
+      double initial_social_range_;
+      costmapLayersDynRecHandler *costmap_layers_handler_; ///< @brief Costmap handler for dynamic reconfiguration
+      bool check_costmap_layers_;
       bool collision_error_front_;
       bool collision_error_rear_;
       bool collision_warning_front_;
       bool collision_warning_rear_;
-
+      bool enable_social_layer_;
+      bool enable_obstacle_layer_;
       bool robot_still_position_;
       /**
        * @brief Odometry-Callback: function is called whenever a new odometry msg is published on that topic
