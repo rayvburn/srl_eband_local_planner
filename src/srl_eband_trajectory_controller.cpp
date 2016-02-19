@@ -126,6 +126,8 @@ void SrlEBandTrajectoryCtrl::callbackDynamicReconfigure(srl_eband_local_planner:
   warning_robot_radius_ = config.warning_robot_radius_dyn;
   max_rotational_velocity_turning_on_spot_ = config.max_rotational_velocity_turning_on_spot_dyn;
   human_legibility_on_ = config.human_legibility_on_dyn;
+  trans_vel_goal_ = config.trans_vel_goal_dyn;
+
   context_cost_function_->setParams(config.cc_alpha_max, config.cc_d_low,
               config.cc_d_high, config.cc_beta, config.cc_min_scale,
               config.sim_time, config.publish_predictions, config.publish_curr_traj);
@@ -157,7 +159,7 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
   {
     // create Node Handle with name of plugin (as used in move_base for loading)
     ros::NodeHandle node_private("~/" + name);
-
+    trans_vel_goal_ = 0.5;
     // read parameters from parameter server
     node_private.param("max_vel_lin", max_vel_lin_, 1.0);
     node_private.param("max_vel_th", max_vel_th_, 1.57);
@@ -199,7 +201,7 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     node_private.getParam("backward_motion_on", this->backward_motion_on_);
     node_private.getParam("local_path_topic", this->local_path_topic_);
     node_private.getParam("max_translational_vel_due_to_laser_points_density", this->max_translational_vel_due_to_laser_points_density_);
-
+    node_private.getParam("trans_vel_goal", trans_vel_goal_);
     /// define subscribers
     sub_front_laser_ =  node_private.subscribe(front_laser_topic_, 1, &SrlEBandTrajectoryCtrl::callbackLaserScanReceived, this);
     sub_rear_laser_  =  node_private.subscribe(rear_laser_topic_, 1, &SrlEBandTrajectoryCtrl::callbackLaserScanReceived, this);
@@ -1238,7 +1240,8 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
 
     double max_vel_lin = max_vel_lin_;
     if (distance_from_goal < 1.75f) {
-      max_vel_lin = (max_vel_lin < 0.3) ? 0.15 : max_vel_lin / 2;
+      //max_vel_lin = (max_vel_lin < 0.3) ? 0.15 : max_vel_lin / 2 ;
+      max_vel_lin = (max_vel_lin < 0.3) ? 0.15 : trans_vel_goal_ ;
     }
 
     ROS_DEBUG("Bubble gain %f, bubble_radius %f, velocity_multiplier %f, max_vel_lin %f, max_vel_lin_ %f, distance to the goal %f", bubble_velocity_multiplier_, bubble_radius,
