@@ -1177,8 +1177,8 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
         fabs(bubble_diff.linear.y) <= 0.6 * tolerance_trans_ ) ||
         (in_final_goal_turn_ && elastic_band_.size() < 3) ) {
       // Calculate orientation difference to goal orientation (not captured in bubble_diff)
-      // double robot_yaw = tf::getYaw(elastic_band_.at(0).center.pose.orientation);
-      double robot_yaw_to_goal = robot_yaw;
+       double robot_yaw_to_goal = tf::getYaw(elastic_band_.at(0).center.pose.orientation);
+      //double robot_yaw_to_goal = robot_yaw;
       double goal_yaw = tf::getYaw(elastic_band_.at((int)elastic_band_.size() - 1).center.pose.orientation);
       float orientation_diff = angles::normalize_angle(goal_yaw - robot_yaw_to_goal);
       if (fabs(orientation_diff) > tolerance_rot_) {
@@ -1193,7 +1193,8 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
         if (fabs(robot_cmd.angular.z) > max_rotational_velocity_turning_on_spot_) { // limit max rotation
           robot_cmd.angular.z = rotation_sign * max_rotational_velocity_turning_on_spot_;
         }
-          ROS_INFO("Performing in place rotation for goal (diff,w): %f %f", orientation_diff, robot_cmd.angular.z );
+          ROS_DEBUG("Performing in place rotation for goal (diff,w): %f %f", orientation_diff, robot_cmd.angular.z );
+
 
       } else {
             in_final_goal_turn_ = false; // Goal reached
@@ -1245,7 +1246,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
            robot_cmd.angular.z = rotation_sign * max_rotational_velocity_turning_on_spot_;
         }
 
-        ROS_INFO("Performing in place rotation for start (diff): %f", bubble_diff.angular.z, robot_cmd.angular.z);
+        ROS_DEBUG("Performing in place rotation for start (diff): %f", bubble_diff.angular.z, robot_cmd.angular.z);
       command_provided = true;
     }
   }
