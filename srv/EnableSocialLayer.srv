@@ -1,0 +1,5 @@
+# request fields
+bool                              enable
+---
+# response fields
+bool                              enabled
