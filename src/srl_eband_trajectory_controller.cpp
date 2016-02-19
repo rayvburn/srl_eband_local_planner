@@ -71,6 +71,7 @@ SrlEBandTrajectoryCtrl::SrlEBandTrajectoryCtrl(std::string name, costmap_2d::Cos
   max_translational_vel_due_to_laser_points_density_ = 0.5;
   warning_robot_angle_ = M_PI/2;
   max_rotational_velocity_turning_on_spot_ = 0.75;
+  start_to_stop_goal_ = 2.25;
   human_legibility_on_ = true;
   // initialize planner
   initialize(name, costmap_ros, tf);
@@ -127,7 +128,7 @@ void SrlEBandTrajectoryCtrl::callbackDynamicReconfigure(srl_eband_local_planner:
   max_rotational_velocity_turning_on_spot_ = config.max_rotational_velocity_turning_on_spot_dyn;
   human_legibility_on_ = config.human_legibility_on_dyn;
   trans_vel_goal_ = config.trans_vel_goal_dyn;
-
+  start_to_stop_goal_ = config.start_to_stop_goal_dyn;
   context_cost_function_->setParams(config.cc_alpha_max, config.cc_d_low,
               config.cc_d_high, config.cc_beta, config.cc_min_scale,
               config.sim_time, config.publish_predictions, config.publish_curr_traj);
@@ -160,6 +161,7 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     // create Node Handle with name of plugin (as used in move_base for loading)
     ros::NodeHandle node_private("~/" + name);
     trans_vel_goal_ = 0.5;
+    start_to_stop_goal_ = 2.25;
     // read parameters from parameter server
     node_private.param("max_vel_lin", max_vel_lin_, 1.0);
     node_private.param("max_vel_th", max_vel_th_, 1.57);
@@ -202,6 +204,7 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     node_private.getParam("local_path_topic", this->local_path_topic_);
     node_private.getParam("max_translational_vel_due_to_laser_points_density", this->max_translational_vel_due_to_laser_points_density_);
     node_private.getParam("trans_vel_goal", trans_vel_goal_);
+    node_private.getParam("start_to_stop_goal",start_to_stop_goal_);
     /// define subscribers
     sub_front_laser_ =  node_private.subscribe(front_laser_topic_, 1, &SrlEBandTrajectoryCtrl::callbackLaserScanReceived, this);
     sub_rear_laser_  =  node_private.subscribe(rear_laser_topic_, 1, &SrlEBandTrajectoryCtrl::callbackLaserScanReceived, this);
@@ -1096,7 +1099,23 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
   geometry_msgs::Twist robot_cmd, bubble_diff;
   robot_cmd.linear.x = 0.0;
   robot_cmd.angular.z = 0.0;
+  ROS_DEBUG("Human Legibility on");
+  // get current robot pose
+  tf::StampedTransform transform_flipped;
+  try{
+      tf_listener->lookupTransform("odom", robot_frame_ , ros::Time(0), transform_flipped);
+  }
+  catch (tf::TransformException ex){
+          ROS_ERROR("%s",ex.what());
+          ros::Duration(1.0).sleep();
+          return false;
+  }
 
+  double x_rob = transform_flipped.getOrigin().x();
+  double y_rob = transform_flipped.getOrigin().y();
+  tf::Quaternion qcurr_flipped = transform_flipped.getRotation();
+  qcurr_flipped.normalize();
+  double robot_yaw = tf::getYaw(qcurr_flipped);
   bool command_provided = false;
 
   // check if plugin initialized
@@ -1156,14 +1175,14 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
     // position
     if((fabs(bubble_diff.linear.x) <= 0.6 * tolerance_trans_ &&
         fabs(bubble_diff.linear.y) <= 0.6 * tolerance_trans_ ) ||
-        (in_final_goal_turn_ && elastic_band_.size() < 2) ) {
+        (in_final_goal_turn_ && elastic_band_.size() < 3) ) {
       // Calculate orientation difference to goal orientation (not captured in bubble_diff)
-      double robot_yaw = tf::getYaw(elastic_band_.at(0).center.pose.orientation);
+      // double robot_yaw = tf::getYaw(elastic_band_.at(0).center.pose.orientation);
+      double robot_yaw_to_goal = robot_yaw;
       double goal_yaw = tf::getYaw(elastic_band_.at((int)elastic_band_.size() - 1).center.pose.orientation);
-      float orientation_diff = angles::normalize_angle(goal_yaw - robot_yaw);
+      float orientation_diff = angles::normalize_angle(goal_yaw - robot_yaw_to_goal);
       if (fabs(orientation_diff) > tolerance_rot_) {
         in_final_goal_turn_ = true;
-        ROS_DEBUG("Performing in place rotation for goal (diff): %f", orientation_diff);
         double rotation_sign = -2 * (orientation_diff < 0) + 1;
         robot_cmd.angular.z = rotation_sign * min_in_place_vel_th_ + k_p_ * orientation_diff;
 
@@ -1174,6 +1193,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
         if (fabs(robot_cmd.angular.z) > max_rotational_velocity_turning_on_spot_) { // limit max rotation
           robot_cmd.angular.z = rotation_sign * max_rotational_velocity_turning_on_spot_;
         }
+          ROS_INFO("Performing in place rotation for goal (diff,w): %f %f", orientation_diff, robot_cmd.angular.z );
 
       } else {
             in_final_goal_turn_ = false; // Goal reached
@@ -1184,6 +1204,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
             robot_cmd.linear.x = 0.0;
             robot_cmd.angular.z = 0.0;
             goal_reached = true;
+            return true;
       }
       command_provided = true;
     }
@@ -1224,7 +1245,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
            robot_cmd.angular.z = rotation_sign * max_rotational_velocity_turning_on_spot_;
         }
 
-      ROS_DEBUG("Performing in place rotation for start (diff): %f", bubble_diff.angular.z, robot_cmd.angular.z);
+        ROS_INFO("Performing in place rotation for start (diff): %f", bubble_diff.angular.z, robot_cmd.angular.z);
       command_provided = true;
     }
   }
@@ -1239,7 +1260,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
     double velocity_multiplier = bubble_velocity_multiplier_ * bubble_radius;
 
     double max_vel_lin = max_vel_lin_;
-    if (distance_from_goal < 1.75f) {
+    if (distance_from_goal < start_to_stop_goal_) {
       //max_vel_lin = (max_vel_lin < 0.3) ? 0.15 : max_vel_lin / 2 ;
       max_vel_lin = (max_vel_lin < 0.3) ? 0.15 : trans_vel_goal_ ;
     }
@@ -1288,23 +1309,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
 
 
     if(human_legibility_on_){
-      ROS_DEBUG("Human Legibility on");
-      // get current robot pose
-      tf::StampedTransform transform_flipped;
-      try{
-          tf_listener->lookupTransform("odom", robot_frame_ , ros::Time(0), transform_flipped);
-      }
-      catch (tf::TransformException ex){
-              ROS_ERROR("%s",ex.what());
-              ros::Duration(1.0).sleep();
-              return false;
-      }
 
-      double x_rob = transform_flipped.getOrigin().x();
-      double y_rob = transform_flipped.getOrigin().y();
-      tf::Quaternion qcurr_flipped = transform_flipped.getRotation();
-      qcurr_flipped.normalize();
-      double robot_yaw = tf::getYaw(qcurr_flipped);
       // generate scaling factores
       base_local_planner::Trajectory local_path;
       context_cost_function_->generateTrajectory(x_rob, y_rob, robot_yaw,
