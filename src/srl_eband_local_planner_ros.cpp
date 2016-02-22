@@ -345,7 +345,9 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
     // set global plan to wrapper and pass it to eband
     bool SrlEBandPlannerROS::setPlan(const std::vector<geometry_msgs::PoseStamped>& orig_global_plan)
     {
-
+      if(check_costmap_layers_)
+        setCostmapsLayers();
+        
       // check if plugin initialized
       if(!initialized_)
       {
@@ -392,7 +394,8 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
           costmap_ros_->resetLayers();
           plan_set = eband_->setPlan(transformed_plan_);
           ROS_WARN("Setting plan done, result %d",plan_set);
-
+          if(check_costmap_layers_)
+            setCostmapsLayers();
           k++;
         }
 
