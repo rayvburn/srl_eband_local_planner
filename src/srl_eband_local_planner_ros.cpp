@@ -78,8 +78,15 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       // check if the plugin is already initialized
       if(!initialized_)
       {
+
         // copy adress of costmap and Transform Listener (handed over from move_base)
         costmap_ros_ = costmap_ros;
+        costmap_ros_initial_ = costmap_ros;
+
+        costmap_only_static_ = new costmap_2d::Costmap2DROS("static_costmap_local", *tf);
+        costmap_only_static_->start();
+
+
         tf_ = tf;
         optimize_band_ = true;
 
@@ -210,56 +217,68 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         ROS_DEBUG("Set costmap layers, %d %d", enable_social_layer_,
          enable_obstacle_layer_);
 
-
-        if(costmap_layers_handler_->isObstacleLayerEnabled() &&
-              !enable_obstacle_layer_){
-          if(!costmap_layers_handler_->enableObstacleLayer(false))
-          {
-            ROS_ERROR("Could not plan due to issues during disabling of the Obstacle layer");
-            costmap_layers_handler_->enableObstacleLayer(true);
-            return false;
-          }
-          ROS_INFO("Disabling Obstacle layer in srl_eband_local_planner");
-        }
+         if(enable_social_layer_ == false  && enable_obstacle_layer_ == false){
+           costmap_ros_ = costmap_only_static_;
+           ROS_DEBUG("ElasticBand Only static on");
+         }else{
+           costmap_ros_ = costmap_ros_initial_;
+           ROS_DEBUG("ElasticBand with all the layer");
+         }
+         ROS_DEBUG("Costmap name %s", (costmap_ros_->getName()).c_str());
 
 
-        if(!costmap_layers_handler_->isObstacleLayerEnabled() &&
-              enable_obstacle_layer_)
-        {
-          if(!costmap_layers_handler_->enableObstacleLayer(true))
-          {
-            ROS_ERROR("Could not plan due to issues during enabling of the Obstacle layer");
-            costmap_layers_handler_->enableObstacleLayer(false);
-            return false;
-          }
-          ROS_INFO("Enabling Obstacle layer in srl_eband_local_planner");
-        }
 
-
-        if(costmap_layers_handler_->isSocialLayerEnabled() &&
-              !enable_social_layer_){
-          if(!costmap_layers_handler_->enableSocialLayer(false))
-          {
-            ROS_ERROR("Could not plan due to issues during disabling of the Social layer");
-            costmap_layers_handler_->enableSocialLayer(true);
-            return false;
-          }
-          ROS_INFO("Disabling Social layer in srl_eband_local_planner");
-        }
-
-        if(!costmap_layers_handler_->isSocialLayerEnabled() &&
-              enable_social_layer_)
-        {
-          if(!costmap_layers_handler_->enableSocialLayer(true))
-          {
-            ROS_ERROR("Could not plan due to issues during enabling of the Social layer");
-            costmap_layers_handler_->enableSocialLayer(false);
-            return false;
-          }
-          ROS_INFO("Enabling Social layer in srl_eband_local_planner");
-        }
+        // if(costmap_layers_handler_->isObstacleLayerEnabled() &&
+        //       !enable_obstacle_layer_){
+        //   if(!costmap_layers_handler_->enableObstacleLayer(false))
+        //   {
+        //     ROS_ERROR("Could not plan due to issues during disabling of the Obstacle layer");
+        //     costmap_layers_handler_->enableObstacleLayer(true);
+        //     return false;
+        //   }
+        //   ROS_INFO("Disabling Obstacle layer in srl_eband_local_planner");
+        // }
+        //
+        //
+        // if(!costmap_layers_handler_->isObstacleLayerEnabled() &&
+        //       enable_obstacle_layer_)
+        // {
+        //   if(!costmap_layers_handler_->enableObstacleLayer(true))
+        //   {
+        //     ROS_ERROR("Could not plan due to issues during enabling of the Obstacle layer");
+        //     costmap_layers_handler_->enableObstacleLayer(false);
+        //     return false;
+        //   }
+        //   ROS_INFO("Enabling Obstacle layer in srl_eband_local_planner");
+        // }
+        //
+        //
+        // if(costmap_layers_handler_->isSocialLayerEnabled() &&
+        //       !enable_social_layer_){
+        //   if(!costmap_layers_handler_->enableSocialLayer(false))
+        //   {
+        //     ROS_ERROR("Could not plan due to issues during disabling of the Social layer");
+        //     costmap_layers_handler_->enableSocialLayer(true);
+        //     return false;
+        //   }
+        //   ROS_INFO("Disabling Social layer in srl_eband_local_planner");
+        // }
+        //
+        // if(!costmap_layers_handler_->isSocialLayerEnabled() &&
+        //       enable_social_layer_)
+        // {
+        //   if(!costmap_layers_handler_->enableSocialLayer(true))
+        //   {
+        //     ROS_ERROR("Could not plan due to issues during enabling of the Social layer");
+        //     costmap_layers_handler_->enableSocialLayer(false);
+        //     return false;
+        //   }
+        //   ROS_INFO("Enabling Social layer in srl_eband_local_planner");
+        // }
 
         ROS_DEBUG("Setting costmap layers ended");
+        eband_->setCostMap(costmap_ros_);
+        eband_trj_ctrl_->setCostMap(costmap_ros_);
 
         return true;
     }
@@ -347,7 +366,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
     {
       if(check_costmap_layers_)
         setCostmapsLayers();
-        
+
       // check if plugin initialized
       if(!initialized_)
       {
@@ -355,7 +374,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         return false;
       }
 
-      //reset the global plan
+      //reset the global pla
       global_plan_.clear();
       global_plan_ = orig_global_plan;
 
@@ -373,7 +392,8 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       if(transformed_plan_.empty())
       {
         // if global plan passed in is empty... we won't do anything
-        ROS_WARN("Transformed plan is empty. Aborting local planner!");
+        ROS_WARN("Transformed plan is empty. Aborting local planner! Initial global plan size %d", (int)orig_global_plan.size());
+
         return false;
       }
 
@@ -391,11 +411,11 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         while (!plan_set && k<number_tentative_setting_band_) {
 
           ROS_WARN("Setting plan to Elastic Band method failed! Retrying to set plan #%d", k);
+
           costmap_ros_->resetLayers();
           plan_set = eband_->setPlan(transformed_plan_);
           ROS_WARN("Setting plan done, result %d",plan_set);
-          if(check_costmap_layers_)
-            setCostmapsLayers();
+
           k++;
         }
 
@@ -471,12 +491,8 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
 
       }
 
-
       if(check_costmap_layers_)
         setCostmapsLayers();
-
-
-//        ROS_INFO("LocalPlanner could not generate a path, collision error on, %d, %d, %d, %d", collision_error_rear_, collision_error_front_, robot_still_position_,dir_planning_);
 
       // instantiate local variables
       //std::vector<geometry_msgs::PoseStamped> local_plan;

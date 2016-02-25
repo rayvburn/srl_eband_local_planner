@@ -160,6 +160,11 @@ namespace srl_eband_local_planner{
        */
       bool optimizeBand(std::vector<Bubble>& band);
 
+      /**
+      * @brief publishRepairedPlan, Publish final plan
+      * @return void
+      */
+      void setCostMap(costmap_2d::Costmap2DROS* costmap_ros);
 
       /**
        * @brief Repair the global plan
@@ -393,6 +398,9 @@ namespace srl_eband_local_planner{
       * @return void
       */
       void publishRepairedPlan(std::vector<geometry_msgs::PoseStamped>& plan);
+
+
+
 
   };
 };

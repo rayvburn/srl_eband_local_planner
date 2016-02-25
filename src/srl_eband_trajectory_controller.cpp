@@ -73,6 +73,7 @@ SrlEBandTrajectoryCtrl::SrlEBandTrajectoryCtrl(std::string name, costmap_2d::Cos
   max_rotational_velocity_turning_on_spot_ = 0.75;
   start_to_stop_goal_ = 2.25;
   human_legibility_on_ = true;
+  circumscribed_radius_ = 0.67;
   // initialize planner
   initialize(name, costmap_ros, tf);
   compute_curvature_properties_ = new CurvatureProperties();
@@ -84,6 +85,19 @@ SrlEBandTrajectoryCtrl::SrlEBandTrajectoryCtrl(std::string name, costmap_2d::Cos
 
 
 SrlEBandTrajectoryCtrl::~SrlEBandTrajectoryCtrl() {
+
+
+}
+
+/// ==================================================================================
+/// setCostMap()
+/// ==================================================================================
+void SrlEBandTrajectoryCtrl::setCostMap(costmap_2d::Costmap2DROS* costmap_ros){
+
+  // copy adress of costmap (handed over from move_base via eband wrapper)
+  costmap_ros_ = costmap_ros;
+
+  circumscribed_radius_ = getCircumscribedRadius(*costmap_ros_);
 
 
 }
@@ -252,6 +266,8 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     context_cost_function_ =  new hanp_local_planner::ContextCostFunction();
     context_cost_function_->initialize(planner_frame_, tf_listener);
 
+    circumscribed_radius_ = getCircumscribedRadius(*costmap_ros_);
+
   }
   else
   {
@@ -395,82 +411,67 @@ bool SrlEBandTrajectoryCtrl::setBand(const std::vector<Bubble>& elastic_band)
 {
   elastic_band_ = elastic_band;
   band_set_ = true;
+  return true;
   previous_angular_error_=0;
   integral_angular_=0;
-  // create local variables
-  std::vector<geometry_msgs::PoseStamped> tmp_plan;
 
-  // adapt plan to band
-  tmp_plan.clear();
-  plan_.clear();
+  if(tracker_on_){
+      // create local variables
+      std::vector<geometry_msgs::PoseStamped> tmp_plan;
+      // adapt plan to band
+      tmp_plan.clear();
+      plan_.clear();
+      double old_x = 0;
+      double old_y = 0;
+      ROS_INFO("Elastic band received in frame %s", elastic_band_[0].center.header.frame_id.c_str());
 
-  double old_x = 0;
-  double old_y = 0;
-  ROS_DEBUG("Elastic band received in frame %s", elastic_band_[0].center.header.frame_id.c_str());
-
-  for(int i = 0; i < ((int) elastic_band_.size()); i++)
-  {
-
-
-    if(i>0){
-
-      double t = 0;
-      while( t < 1 ){
-
+      for(int i = 0; i < ((int) elastic_band_.size()); i++)
+      {
+        if(i>0){
+          double t = 0;
+          while( t < 1 ){
+              geometry_msgs::PoseStamped p;
+              p.header = elastic_band_[i].center.header;
+              p.pose.position.x =  t*(elastic_band_[i].center.pose.position.x - old_x) + old_x;
+              p.pose.position.y =  t*(elastic_band_[i].center.pose.position.y - old_y) + old_y;
+              p.pose.orientation = elastic_band_[i].center.pose.orientation;
+              t=t+0.5;
+              geometry_msgs::PoseStamped pt = transformPose(p);
+              tmp_plan.push_back( pt );
+              ROS_DEBUG("Point added %f %f to the path from the elastic band", p.pose.position.x, p.pose.position.y);
+              ROS_DEBUG("Related to the elastic band point %f, %f", elastic_band_[i].center.pose.position.x,
+                          elastic_band_[i].center.pose.position.y);
+          }
+        }else{
           geometry_msgs::PoseStamped p;
           p.header = elastic_band_[i].center.header;
-          p.pose.position.x =  t*(elastic_band_[i].center.pose.position.x - old_x) + old_x;
-          p.pose.position.y =  t*(elastic_band_[i].center.pose.position.y - old_y) + old_y;
+          p.pose.position.x =  elastic_band_[i].center.pose.position.x;
+          p.pose.position.y =  elastic_band_[i].center.pose.position.y;
           p.pose.orientation = elastic_band_[i].center.pose.orientation;
-          t=t+0.5;
-
           geometry_msgs::PoseStamped pt = transformPose(p);
+          // set centers of bubbles to StampedPose in plan
           tmp_plan.push_back( pt );
-          ROS_DEBUG("Point added %f %f to the path from the elastic band", p.pose.position.x, p.pose.position.y);
-          ROS_DEBUG("Related to the elastic band point %f, %f", elastic_band_[i].center.pose.position.x,
-                      elastic_band_[i].center.pose.position.y);
+          ROS_DEBUG("Initial point added %f %f to the path from the elastic band", elastic_band_[i].center.pose.position.x, elastic_band_[i].center.pose.position.y);
+        }
+        old_x = elastic_band_[i].center.pose.position.x;
+        old_y = elastic_band_[i].center.pose.position.y;
+      }
+      //write to referenced variable and done
+      plan_ = tmp_plan;
+      curr_control_index_ = 0;
+      /// setting Feedforward commands
+      dx_d_.resize(plan_.size());
+      dy_d_.resize(plan_.size());
+      for(size_t i=0; i<dx_d_.size()-1; i++){
+              dx_d_[i]=(plan_[i+1].pose.position.x-plan_[i].pose.position.x)/ts_;
+              dy_d_[i]=(plan_[i+1].pose.position.y-plan_[i].pose.position.y)/ts_;
+              if(dx_d_[i]==0)
+                  dx_d_[i]=0.01;
+              if(dy_d_[i]==0)
+                  dy_d_[i]=0.01;
       }
 
-    }else{
-      geometry_msgs::PoseStamped p;
-      p.header = elastic_band_[i].center.header;
-      p.pose.position.x =  elastic_band_[i].center.pose.position.x;
-      p.pose.position.y =  elastic_band_[i].center.pose.position.y;
-      p.pose.orientation = elastic_band_[i].center.pose.orientation;
-      geometry_msgs::PoseStamped pt = transformPose(p);
-
-      // set centers of bubbles to StampedPose in plan
-      tmp_plan.push_back( pt );
-      ROS_DEBUG("Initial point added %f %f to the path from the elastic band", elastic_band_[i].center.pose.position.x, elastic_band_[i].center.pose.position.y);
-
-    }
-
-    old_x = elastic_band_[i].center.pose.position.x;
-    old_y = elastic_band_[i].center.pose.position.y;
-
-
   }
-  //write to referenced variable and done
-  plan_ = tmp_plan;
-  curr_control_index_ = 0;
-
-  /// setting Feedforward commands
-  dx_d_.resize(plan_.size());
-  dy_d_.resize(plan_.size());
-
-
-  for(size_t i=0; i<dx_d_.size()-1; i++){
-
-          dx_d_[i]=(plan_[i+1].pose.position.x-plan_[i].pose.position.x)/ts_;
-          dy_d_[i]=(plan_[i+1].pose.position.y-plan_[i].pose.position.y)/ts_;
-
-          if(dx_d_[i]==0)
-              dx_d_[i]=0.01;
-
-          if(dy_d_[i]==0)
-              dy_d_[i]=0.01;
-  }
-
 
   ROS_DEBUG("Setting Band ended");
 
@@ -534,7 +535,7 @@ geometry_msgs::PoseStamped SrlEBandTrajectoryCtrl::transformPose(geometry_msgs::
     }
     catch(tf::TransformException e){
 
-        ROS_ERROR("Failed to transform the given pose in the Planner frame_id, planner frame %s, inititpose frame %s, reason %s", planner_frame_.c_str(), init_pose.header.frame_id.c_str(), e.what());
+        ROS_ERROR("Failed to transform the given pose in the Eband Planner frame_id, planner frame %s, inititpose frame %s, reason %s", planner_frame_.c_str(), init_pose.header.frame_id.c_str(), e.what());
     }
 
     tf::Pose source;
@@ -1409,7 +1410,7 @@ bool SrlEBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goa
   bubble_diff = getFrame1ToFrame2InRefFrame(elastic_band_.at(0).center.pose,
       elastic_band_.at(1).center.pose,
       ref_frame_band_);
-  ang_pseudo_dist = bubble_diff.angular.z * getCircumscribedRadius(*costmap_ros_);
+  ang_pseudo_dist = bubble_diff.angular.z * circumscribed_radius_;
   bubble_distance = sqrt( (bubble_diff.linear.x * bubble_diff.linear.x) + (bubble_diff.linear.y * bubble_diff.linear.y) +
       (ang_pseudo_dist * ang_pseudo_dist) );
 
@@ -1424,7 +1425,7 @@ bool SrlEBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goa
   control_deviation = bubble_diff;
 
 
-  ang_pseudo_dist = control_deviation.angular.z * getCircumscribedRadius(*costmap_ros_);
+  ang_pseudo_dist = control_deviation.angular.z * circumscribed_radius_;
   abs_ctrl_dev = sqrt( (control_deviation.linear.x * control_deviation.linear.x) +
       (control_deviation.linear.y * control_deviation.linear.y) +
       (ang_pseudo_dist * ang_pseudo_dist) );
@@ -1454,7 +1455,7 @@ bool SrlEBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goa
       next_bubble_diff = getFrame1ToFrame2InRefFrame(elastic_band_.at(1).center.pose,
           elastic_band_.at(2).center.pose,
           ref_frame_band_);
-      ang_pseudo_dist = next_bubble_diff.angular.z * getCircumscribedRadius(*costmap_ros_);
+      ang_pseudo_dist = next_bubble_diff.angular.z * circumscribed_radius_;
       next_bubble_distance = sqrt( (next_bubble_diff.linear.x * next_bubble_diff.linear.x) +
           (next_bubble_diff.linear.y * next_bubble_diff.linear.y) +
           (ang_pseudo_dist * ang_pseudo_dist) );
@@ -1481,8 +1482,8 @@ bool SrlEBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goa
         double ang_pseudo_dist1, ang_pseudo_dist2;
 
         // get distance between next bubble center and intersection point
-        ang_pseudo_dist1 = bubble_diff.angular.z * getCircumscribedRadius(*costmap_ros_);
-        ang_pseudo_dist2 = next_bubble_diff.angular.z * getCircumscribedRadius(*costmap_ros_);
+        ang_pseudo_dist1 = bubble_diff.angular.z * circumscribed_radius_;
+        ang_pseudo_dist2 = next_bubble_diff.angular.z * circumscribed_radius_;
         // careful! - we need this sign because of the direction of the vectors and the definition of the vector-product
         vec_prod = - ( (bubble_diff.linear.x * next_bubble_diff.linear.x) +
             (bubble_diff.linear.y * next_bubble_diff.linear.y) +
@@ -1517,7 +1518,7 @@ bool SrlEBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goa
   }
 
   // plot control deviation
-  ang_pseudo_dist = control_deviation.angular.z * getCircumscribedRadius(*costmap_ros_);
+  ang_pseudo_dist = control_deviation.angular.z * circumscribed_radius_;
   abs_ctrl_dev = sqrt( (control_deviation.linear.x * control_deviation.linear.x) +
       (control_deviation.linear.y * control_deviation.linear.y) +
       (ang_pseudo_dist * ang_pseudo_dist) );
@@ -1600,7 +1601,7 @@ bool SrlEBandTrajectoryCtrl::getTwist(geometry_msgs::Twist& twist_cmd, bool& goa
   currbub_maxvel_abs = getBubbleTargetVel(curr_bub_num, elastic_band_, currbub_maxvel_dir);
 
   // if neccessarry scale desired vel to stay lower than currbub_maxvel_abs
-  ang_pseudo_dist = desired_velocity.angular.z * getCircumscribedRadius(*costmap_ros_);
+  ang_pseudo_dist = desired_velocity.angular.z * circumscribed_radius_;
   desvel_abs = sqrt( (desired_velocity.linear.x * desired_velocity.linear.x) +
       (desired_velocity.linear.y * desired_velocity.linear.y) +
       (ang_pseudo_dist * ang_pseudo_dist) );
@@ -1746,7 +1747,7 @@ double SrlEBandTrajectoryCtrl::getBubbleTargetVel(const int& target_bub_num, con
   ROS_ASSERT( (target_bub_num >= 0) && ((target_bub_num +1) < (int) band.size()) );
   bubble_diff = getFrame1ToFrame2InRefFrame(band.at(target_bub_num).center.pose, band.at(target_bub_num + 1).center.pose,
       ref_frame_band_);
-  angle_to_pseudo_vel = bubble_diff.angular.z * getCircumscribedRadius(*costmap_ros_);
+  angle_to_pseudo_vel = bubble_diff.angular.z * circumscribed_radius_;
 
   bubble_distance = sqrt( (bubble_diff.linear.x * bubble_diff.linear.x) + (bubble_diff.linear.y * bubble_diff.linear.y) +
       (angle_to_pseudo_vel * angle_to_pseudo_vel) );

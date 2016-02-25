@@ -168,6 +168,9 @@ namespace srl_eband_local_planner{
 
       // pointer to external objects (do NOT delete object)
       costmap_2d::Costmap2DROS* costmap_ros_; ///<@brief pointer to costmap
+      costmap_2d::Costmap2DROS* costmap_only_static_;
+      costmap_2d::Costmap2DROS* costmap_ros_initial_; ///<@brief pointer to costmap
+
       tf::TransformListener* tf_; ///<@brief pointer to Transform Listener
 
       dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig> *dr_server_;

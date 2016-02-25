@@ -150,6 +150,19 @@ namespace srl_eband_local_planner{
     visualization_ = true;
   }
 
+  /// ==================================================================================
+  /// setCostMap()
+  /// ==================================================================================
+  void SrlEBandPlanner::setCostMap(costmap_2d::Costmap2DROS* costmap_ros){
+
+    // copy adress of costmap (handed over from move_base via eband wrapper)
+    costmap_ros_ = costmap_ros;
+
+    // get a pointer to the underlying costmap
+    costmap_ = costmap_ros_->getCostmap();
+
+    globalPlannerNav.setCostMap(costmap_ros);
+  }
 
   /// ==================================================================================
   /// publishPlan(std::vector<geometry_msgs::PoseStamped>& plan)

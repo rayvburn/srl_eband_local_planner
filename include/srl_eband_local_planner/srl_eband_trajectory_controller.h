@@ -182,6 +182,12 @@ namespace srl_eband_local_planner{
       void publishLocalPlan(base_local_planner::Trajectory local_traj);
 
 
+      /**
+      * @brief publishRepairedPlan, Publish final plan
+      * @return void
+      */
+      void setCostMap(costmap_2d::Costmap2DROS* costmap_ros);
+
     private:
 
       // pointer to external objects (do NOT delete object)
@@ -192,7 +198,7 @@ namespace srl_eband_local_planner{
       ros::Publisher pub_local_path_;
       dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig> *dr_server_;
       control_toolbox::Pid pid_;
-
+      double circumscribed_radius_;
       // parameters
       bool differential_drive_on_;
       double k_p_, k_nu_, k_int_, k_diff_, ctrl_freq_;
