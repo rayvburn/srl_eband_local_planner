@@ -63,6 +63,8 @@
 #include <visualization_msgs/MarkerArray.h>
 #include <visualization_msgs/Marker.h>
 #include <std_msgs/Bool.h>
+#include <std_msgs/String.h>
+
 // transforms
 #include <angles/angles.h>
 #include <tf/tf.h>
@@ -76,8 +78,9 @@
 #include <boost/shared_ptr.hpp>
 #include <srl_eband_local_planner/srlEBandLocalPlannerConfig.h>
 #include <spencer_control_msgs/CollisionStatus.h>
-#define EPS 0.01
+#include <spencer_tracking_msgs/TrackedPersons.h>
 
+#define EPS 0.01
 using namespace spencer_control_msgs;
 
 namespace srl_eband_local_planner{
@@ -164,6 +167,12 @@ namespace srl_eband_local_planner{
 
       bool setCostmapsLayers();
 
+      void callbackAllTracks(const spencer_tracking_msgs::TrackedPersons::ConstPtr& msg);
+
+      void callbackTriggerHRI(const std_msgs::Bool::ConstPtr& msg);
+
+
+
     private:
 
       // pointer to external objects (do NOT delete object)
@@ -185,12 +194,17 @@ namespace srl_eband_local_planner{
       // Topics & Services
       ros::Publisher g_plan_pub_; ///<@brief publishes modified global plan
       ros::Publisher l_plan_pub_; ///<@brief publishes prediction for local commands
+      ros::Publisher pub_hri_message_;
       ros::Subscriber odom_sub_; ///<@brief subscribes to the odometry topic in global namespace
       ros::Subscriber sub_current_driving_direction_;
-      ros::Subscriber  sub_current_measured_velocity_;
-      ros::Subscriber  frontLaserCollisionStatus_listener_;
-      ros::Subscriber  rearLaserCollisionStatus_listener_;
+      ros::Subscriber sub_current_measured_velocity_;
+      ros::Subscriber frontLaserCollisionStatus_listener_;
+      ros::Subscriber rearLaserCollisionStatus_listener_;
+      ros::Subscriber sub_tracks_;
+      ros::Subscriber sub_trigger_hri_;
+
       // data
+      std::vector<geometry_msgs::PoseStamped> agents_position; ///<  @brief agents
       nav_msgs::Odometry base_odom_;
       std::vector<geometry_msgs::PoseStamped> global_plan_; // plan as handed over from move_base or global planner
       std::vector<geometry_msgs::PoseStamped> transformed_plan_; // plan transformed into the map frame we are working in
@@ -221,6 +235,14 @@ namespace srl_eband_local_planner{
       bool enable_social_layer_;
       bool enable_obstacle_layer_;
       bool robot_still_position_;
+      double max_lin_vel_;
+      double max_lin_vel_hri_;
+      bool trigger_hri_;
+      double min_alert_dist_tracks_;
+      double max_ang_range_tracks_;
+      int cnt_tracks_in_front_;
+      std::string hr_message_;
+
       /**
        * @brief Odometry-Callback: function is called whenever a new odometry msg is published on that topic
        * @param Pointer to the received message

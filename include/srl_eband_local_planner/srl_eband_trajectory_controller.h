@@ -188,6 +188,18 @@ namespace srl_eband_local_planner{
       */
       void setCostMap(costmap_2d::Costmap2DROS* costmap_ros);
 
+      /**
+      * @brief set limits on the velocity
+      * @return void
+      */
+      void setDifferentialDriveVelLimits(double v, double w);
+
+      /**
+      * @brief set the limits of the Velocity during HRI
+      * @return void
+      */
+      bool limitVelocityHRI(double &curr_max_vel);
+
     private:
 
       // pointer to external objects (do NOT delete object)
@@ -264,6 +276,10 @@ namespace srl_eband_local_planner{
       double warning_robot_angle_;
       bool backward_motion_on_;
       double max_translational_vel_due_to_laser_points_density_;
+      double max_vel_th_hri_;
+      double max_vel_lin_hri_;
+      bool limit_vel_based_on_hri_;
+    
       std::string front_laser_frame_;
       std::string rear_laser_frame_;
       std::string rear_laser_topic_;

@@ -64,7 +64,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       collision_error_front_ = false;
       collision_warning_rear_ = false;
       collision_warning_front_ = false;
-      check_costmap_layers_ = false;
+      check_costmap_layers_ = true;
       dir_planning_ = -1; // starting Backward
       initialize(name, tf, costmap_ros);
     }
@@ -78,6 +78,12 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       // check if the plugin is already initialized
       if(!initialized_)
       {
+        trigger_hri_ = false;
+        min_alert_dist_tracks_ = 2.5;
+        max_ang_range_tracks_ = M_PI/2;
+        max_lin_vel_=1.3;
+        max_lin_vel_hri_ = 1.3;
+        cnt_tracks_in_front_ = 0;
 
         // copy adress of costmap and Transform Listener (handed over from move_base)
         costmap_ros_ = costmap_ros;
@@ -105,20 +111,22 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         // advertise topics (adapted global plan and predicted local trajectory)
         g_plan_pub_ = pn.advertise<nav_msgs::Path>("global_plan", 1);
         l_plan_pub_ = pn.advertise<nav_msgs::Path>("local_plan", 1);
+        pub_hri_message_ = pn.advertise<std_msgs::String>("/spencer/ui/speech_synthesis/request",2);
 
         sub_current_measured_velocity_ = pn.subscribe("/spencer/control/measured_velocity", 5, &SrlEBandPlannerROS::readVelocityCB, this);
         frontLaserCollisionStatus_listener_ = pn.subscribe("/spencer/control/collision/aggregated_front", 1, &SrlEBandPlannerROS::checkFrontLaserCollisionStatus, this);
         rearLaserCollisionStatus_listener_  = pn.subscribe("/spencer/control/collision/aggregated_rear", 1, &SrlEBandPlannerROS::checkRearLaserCollisionStatus, this);
         sub_current_driving_direction_ = pn.subscribe("/spencer/nav/current_driving_direction", 1, &SrlEBandPlannerROS::SetDrivingDirection, this);
+        sub_tracks_ = pn.subscribe("/spencer/perception/tracked_persons",1, &SrlEBandPlannerROS::callbackAllTracks,this);
+        sub_trigger_hri_ = pn.subscribe("/spencer/navigation/trigger_human_interaction", 1, &SrlEBandPlannerROS::callbackTriggerHRI,this);
 
-        pn.param("check_costmap_layers", check_costmap_layers_, false);
 
 
+        pn.param("check_costmap_layers", check_costmap_layers_, true);
 
         // subscribe to topics (to get odometry information, we need to get a handle to the topic in the global namespace)
         ros::NodeHandle gn;
         odom_sub_ = gn.subscribe<nav_msgs::Odometry>("odom", 1, boost::bind(&SrlEBandPlannerROS::odomCallback, this, _1));
-
 
         // create the actual planner that we'll use. Pass Name of plugin and pointer to global costmap to it.
         // (configuration is done via parameter server)
@@ -175,6 +183,82 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       }
     }
 
+    /// ==================================================================================
+    /// callbackTriggerHRI
+    /// callback to read the triggering flag
+    /// ==================================================================================
+    void SrlEBandPlannerROS::callbackTriggerHRI(const std_msgs::Bool::ConstPtr& msg){
+
+      trigger_hri_ = msg->data;
+      ROS_DEBUG_NAMED("Eband_HRI", "Received Trigger %d", trigger_hri_);
+      return;
+
+    }
+
+    /// ==================================================================================
+    /// callbackAllAgents(const pedsim_msgs::AllAgentsState::ConstPtr& msg)
+    /// callback to read the agents positions
+    /// ==================================================================================
+    void SrlEBandPlannerROS::callbackAllTracks(const spencer_tracking_msgs::TrackedPersons::ConstPtr& msg){
+
+        /// Read Robot pose
+        double x_curr = 0;
+        double y_curr = 0;
+        double theta_curr = 0;
+        tf::StampedTransform transform;
+        try{
+            tf_->lookupTransform("odom", "base_link_flipped", ros::Time(0.0), transform);
+        }
+        catch (tf::TransformException ex){
+                ROS_ERROR("Didn't read robot pose via trasform listener in SrlEBandPlannerROS %s",ex.what());
+                ros::Duration(1.0).sleep();
+                return;
+        }
+        x_curr = transform.getOrigin().x();
+        y_curr = transform.getOrigin().y();
+        theta_curr = tf::getYaw(transform.getRotation());
+        if(dir_planning_ == -1){
+            theta_curr = eband_trj_ctrl_->set_angle_to_range(M_PI+theta_curr,0);
+        }
+        else{
+            theta_curr = eband_trj_ctrl_->set_angle_to_range(theta_curr,0);
+        }
+        /// Reading Tracking Poses
+        agents_position.clear();
+        cnt_tracks_in_front_ = 0;
+        double curr_or = 0;
+        double vy = 0;
+        double vx = 0;
+        for(size_t i=0; i < msg->tracks.size(); i++){
+
+                vy = msg->tracks[i].twist.twist.linear.y;
+                vx = msg->tracks[i].twist.twist.linear.x;
+                curr_or=atan2(vy,vx);
+                geometry_msgs::PoseStamped human_pose_i;
+                geometry_msgs::PoseStamped track_pose_i;
+                track_pose_i.header.frame_id = msg->header.frame_id;
+                track_pose_i.pose = msg->tracks[i].pose.pose;
+                track_pose_i.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0,0,curr_or);
+                tf_->transformPose("base_link_flipped", track_pose_i, human_pose_i);
+                /// People Tracks in the Robot Frame
+                agents_position.push_back(human_pose_i);
+                double x = human_pose_i.pose.position.x;
+                double y = human_pose_i.pose.position.y;
+                double dist_i = sqrt(x*x+y*y);
+                // double yaw_i = tf::getYaw(human_pose_i.pose.orientation);
+                double yaw_i = atan2(y,x);
+                ROS_DEBUG_NAMED("Eband_AllTracks", "Human id %d Dist %f, yaw_i %f",(int)msg->tracks[i].track_id, dist_i, yaw_i);
+                if( dist_i<min_alert_dist_tracks_
+                  && fabs(yaw_i)< max_ang_range_tracks_ ){
+                    ROS_DEBUG_NAMED("Eband_HRI_tracks", "Human id %d Dist %f, yaw_i %f",(int)msg->tracks[i].track_id, dist_i, yaw_i);
+                      cnt_tracks_in_front_++;
+                }
+
+        }
+
+         return;
+
+    }
 
     /// ========================================================================================
     /// SetDrivingDirection
@@ -280,6 +364,24 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         eband_->setCostMap(costmap_ros_);
         eband_trj_ctrl_->setCostMap(costmap_ros_);
 
+        if(trigger_hri_ && cnt_tracks_in_front_>0){
+
+            ROS_DEBUG_NAMED("Eband_HRI","sending HRI string ");
+            std_msgs::String robot_voice;
+            robot_voice.data = hr_message_;
+            pub_hri_message_.publish(robot_voice);
+
+            eband_trj_ctrl_->setDifferentialDriveVelLimits(max_lin_vel_hri_,1.57);
+
+        }else{
+
+          ROS_DEBUG_NAMED("Eband_HRI","NO HRI, trigger_hri_ %d, cnt_tracks_in_front_ %d",
+        trigger_hri_, cnt_tracks_in_front_);
+
+            eband_trj_ctrl_->setDifferentialDriveVelLimits(max_lin_vel_,1.57);
+
+
+        }
         return true;
     }
 
@@ -355,8 +457,14 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       srlEBandLocalPlannerConfig config_int = config;
       number_tentative_setting_band_ = config.number_tentative_setting_band_dyn;
       check_costmap_layers_ = config.check_costmap_layers_dyn;
+      min_alert_dist_tracks_ = config.min_alert_dist_tracks_dyn;
+      max_ang_range_tracks_ = config.max_ang_range_tracks_dyn;
+      hr_message_ = config.hr_message;
+      max_lin_vel_ = config.max_vel_lin_dyn;;
+      max_lin_vel_hri_ = config.limit_vel_based_on_hri;
       eband_->callbackDynamicReconfigure(config,level);
       eband_trj_ctrl_->callbackDynamicReconfigure(config,level);
+
       return;
 
     }

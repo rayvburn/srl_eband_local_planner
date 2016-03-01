@@ -85,6 +85,7 @@ generate_messages(
 
 catkin_package(
   CATKIN_DEPENDS
+    spencer_tracking_msgs
     spencer_control_msgs
     std_msgs
     base_local_planner

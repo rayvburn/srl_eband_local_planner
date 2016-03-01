@@ -96,12 +96,16 @@ void SrlEBandTrajectoryCtrl::setCostMap(costmap_2d::Costmap2DROS* costmap_ros){
 
   // copy adress of costmap (handed over from move_base via eband wrapper)
   costmap_ros_ = costmap_ros;
-
   circumscribed_radius_ = getCircumscribedRadius(*costmap_ros_);
-
-
+  return;
 }
 
+void SrlEBandTrajectoryCtrl::setDifferentialDriveVelLimits(double v, double w){
+
+      ROS_DEBUG_NAMED("Eband_HRI","Setting the max Velocities (%f, %f)", v, w);
+      max_vel_lin_hri_ = v;
+      return;
+}
 
 /// =======================================================================================
 /// callbackDynamicReconfigure
@@ -147,6 +151,7 @@ void SrlEBandTrajectoryCtrl::callbackDynamicReconfigure(srl_eband_local_planner:
               config.cc_d_high, config.cc_beta, config.cc_min_scale,
               config.sim_time, config.publish_predictions, config.publish_curr_traj);
 
+  limit_vel_based_on_hri_ = config.limit_vel_based_on_hri;
   if(backward_motion_on_){
     robot_frame_ = "base_link_flipped";
   }else{
@@ -176,6 +181,8 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     ros::NodeHandle node_private("~/" + name);
     trans_vel_goal_ = 0.5;
     start_to_stop_goal_ = 2.25;
+    max_vel_th_hri_ = 1.57;
+    max_vel_lin_hri_ = 1.3;
     // read parameters from parameter server
     node_private.param("max_vel_lin", max_vel_lin_, 1.0);
     node_private.param("max_vel_th", max_vel_th_, 1.57);
@@ -399,7 +406,6 @@ void SrlEBandTrajectoryCtrl::callbackLaserScanReceived(const sensor_msgs::LaserS
 void SrlEBandTrajectoryCtrl::setVisualization(boost::shared_ptr<SrlEBandVisualization> target_visual)
 {
   target_visual_ = target_visual;
-
   visualization_ = true;
 }
 
@@ -1022,6 +1028,16 @@ bool SrlEBandTrajectoryCtrl::limitVelocityDensityLaserPoints(double &curr_max_ve
 
     return true;
 }
+
+bool SrlEBandTrajectoryCtrl::limitVelocityHRI(double &curr_max_vel){
+
+  if(curr_max_vel>max_vel_th_hri_)
+    curr_max_vel = max_vel_th_hri_;
+
+    return true;
+
+
+}
 /// =======================================================================================
 /// limitVelocityCurvature()
 /// =======================================================================================
@@ -1282,7 +1298,8 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
     if(limit_vel_based_on_curvature_)
       limitVelocityCurvature(linear_velocity);
 
-
+    if(limit_vel_based_on_hri_)
+      limitVelocityHRI(linear_velocity);
 
     ROS_DEBUG("Linar Velocity before after the turn %f", linear_velocity);
     if (fabs(linear_velocity) > max_vel_lin_) {
@@ -1321,6 +1338,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
 
 
       if(trajectory_scale<1.0){
+
         linear_velocity =  trajectory_scale * linear_velocity;
         angular_velocity = trajectory_scale * angular_velocity;
         /// generate and publish new local trajectory which implements the human awareness
