@@ -333,7 +333,6 @@ void SrlEBandTrajectoryCtrl::callbackLaserScanReceived(const sensor_msgs::LaserS
       {
         num_points_front_robot_ = 0;
       }
-    ROS_DEBUG("Front Laser");
   }
 
   if(strcmp(rear_laser_frame_.c_str(), laserscan.header.frame_id.c_str() ) == 0){
@@ -346,7 +345,6 @@ void SrlEBandTrajectoryCtrl::callbackLaserScanReceived(const sensor_msgs::LaserS
         {
           num_points_rear_robot_ = 0;
         }
-    ROS_DEBUG("Rear Laser");
   }
 
 
@@ -366,7 +364,7 @@ void SrlEBandTrajectoryCtrl::callbackLaserScanReceived(const sensor_msgs::LaserS
 
           // Check if inside warning radius
           if(rho < warning_robot_radius_ && fabs(phi) < warning_robot_angle_ ){
-              ROS_DEBUG("Value of Phi %f and Rho %f", phi, rho);
+
               if(front_laser)
                 {
                   if(backward_motion_on_)
@@ -395,7 +393,7 @@ void SrlEBandTrajectoryCtrl::callbackLaserScanReceived(const sensor_msgs::LaserS
       }
   }
 
-  ROS_DEBUG("Points in front of the robot %d, points rear side of the robot %d",num_points_front_robot_, num_points_rear_robot_ );
+  ROS_DEBUG("Eband_collision_error","Points in front of the robot %d, points rear side of the robot %d",num_points_front_robot_, num_points_rear_robot_ );
   return ;
 }
 
