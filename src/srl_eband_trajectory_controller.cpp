@@ -366,7 +366,7 @@ void SrlEBandTrajectoryCtrl::callbackLaserScanReceived(const sensor_msgs::LaserS
 
           // Check if inside warning radius
           if(rho < warning_robot_radius_ && fabs(phi) < warning_robot_angle_ ){
-              ROS_DEBUG("Value of Phi %f and Rho %f", phi, rho);
+              //ROS_DEBUG("Value of Phi %f and Rho %f", phi, rho);
               if(front_laser)
                 {
                   if(backward_motion_on_)
