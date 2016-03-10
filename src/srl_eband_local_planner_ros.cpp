@@ -239,7 +239,16 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
                 track_pose_i.header.frame_id = msg->header.frame_id;
                 track_pose_i.pose = msg->tracks[i].pose.pose;
                 track_pose_i.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0,0,curr_or);
-                tf_->transformPose("base_link_flipped", track_pose_i, human_pose_i);
+                /// TODO: add try catch
+                try{
+                    tf_->transformPose("base_link_flipped", track_pose_i, human_pose_i);
+                }
+                catch (tf::TransformException ex){
+                        ROS_ERROR("Didn't transform track pose via trasform listener in SrlEBandPlannerROS %s",ex.what());
+                        ros::Duration(1.0).sleep();
+                        return;
+                }
+
                 /// People Tracks in the Robot Frame
                 agents_position.push_back(human_pose_i);
                 double x = human_pose_i.pose.position.x;
