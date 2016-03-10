@@ -79,7 +79,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       if(!initialized_)
       {
         trigger_hri_ = false;
-        min_alert_dist_tracks_ = 2.5;
+        min_alert_dist_tracks_ = 0.75;
         max_ang_range_tracks_ = M_PI/2;
         max_lin_vel_=1.3;
         max_lin_vel_hri_ = 1.3;
@@ -270,8 +270,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
     }
 
     /// ========================================================================================
-    /// SetDrivingDirection
-    /// Set The correct Driving Direction
+    /// enableObstacleLayer
     /// ========================================================================================
     bool SrlEBandPlannerROS::enableObstacleLayer(srl_eband_local_planner::EnableObstacleLayer::Request  &req,
              srl_eband_local_planner::EnableObstacleLayer::Response &res)
@@ -288,8 +287,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
 
 
     /// ========================================================================================
-    /// SetDrivingDirection
-    /// Set The correct Driving Direction
+    /// enableSocialLayer
     /// ========================================================================================
     bool SrlEBandPlannerROS::enableSocialLayer(srl_eband_local_planner::EnableSocialLayer::Request  &req,
              srl_eband_local_planner::EnableSocialLayer::Response &res)
@@ -373,7 +371,9 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         eband_->setCostMap(costmap_ros_);
         eband_trj_ctrl_->setCostMap(costmap_ros_);
 
-        if(trigger_hri_ && cnt_tracks_in_front_>0){
+        if(trigger_hri_ && cnt_tracks_in_front_>0 &&
+          (collision_warning_rear_ && dir_planning_<0) ||
+          (collision_warning_front_ && dir_planning_>0) ){
 
             ROS_DEBUG_NAMED("Eband_HRI","sending HRI string ");
             std_msgs::String robot_voice;
