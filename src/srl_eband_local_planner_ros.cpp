@@ -111,7 +111,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         // advertise topics (adapted global plan and predicted local trajectory)
         g_plan_pub_ = pn.advertise<nav_msgs::Path>("global_plan", 1);
         l_plan_pub_ = pn.advertise<nav_msgs::Path>("local_plan", 1);
-        pub_hri_message_ = pn.advertise<std_msgs::String>("/spencer/ui/speech_synthesis/request",2);
+        pub_hri_message_ = pn.advertise<std_msgs::String>("/spencer/ui/speech_synthesis/request",1);
 
         sub_current_measured_velocity_ = pn.subscribe("/spencer/control/measured_velocity", 5, &SrlEBandPlannerROS::readVelocityCB, this);
         frontLaserCollisionStatus_listener_ = pn.subscribe("/spencer/control/collision/aggregated_front", 1, &SrlEBandPlannerROS::checkFrontLaserCollisionStatus, this);
