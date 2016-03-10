@@ -74,6 +74,7 @@ SrlEBandTrajectoryCtrl::SrlEBandTrajectoryCtrl(std::string name, costmap_2d::Cos
   start_to_stop_goal_ = 2.25;
   human_legibility_on_ = true;
   circumscribed_radius_ = 0.67;
+  old_linear_velocity_ = 0.00;
   // initialize planner
   initialize(name, costmap_ros, tf);
   compute_curvature_properties_ = new CurvatureProperties();
@@ -113,7 +114,7 @@ void SrlEBandTrajectoryCtrl::setDifferentialDriveVelLimits(double v, double w){
 void SrlEBandTrajectoryCtrl::callbackDynamicReconfigure(srl_eband_local_planner::srlEBandLocalPlannerConfig &config, uint32_t level ){
 
   ROS_DEBUG("Reconfiguring Eband Tracker");
-
+  limit_acc_ = config.limit_acc_dyn;
   tolerance_trans_ = config.xy_goal_tolerance_dyn;
   tolerance_rot_ = config.yaw_goal_tolerance_dyn;
   rot_stopping_turn_on_the_spot_ = config.rot_stopping_turn_on_the_spot_dyn;
@@ -158,6 +159,7 @@ void SrlEBandTrajectoryCtrl::callbackDynamicReconfigure(srl_eband_local_planner:
     robot_frame_ = "base_link";
   }
 
+
   ROS_DEBUG("New max_vel_lin %f", max_vel_lin_);
   ROS_DEBUG("New min_vel_lin_ %f", min_vel_lin_);
   ROS_DEBUG("Velocity Gain changed to %f", bubble_velocity_multiplier_);
@@ -183,7 +185,10 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     start_to_stop_goal_ = 2.25;
     max_vel_th_hri_ = 1.57;
     max_vel_lin_hri_ = 1.3;
+    old_linear_velocity_ = 0.0;
+    limit_acc_ = true;
     // read parameters from parameter server
+    nh_ = node_private;
     node_private.param("max_vel_lin", max_vel_lin_, 1.0);
     node_private.param("max_vel_th", max_vel_th_, 1.57);
     node_private.param("min_vel_lin", min_vel_lin_, 0.1);
@@ -1109,7 +1114,9 @@ bool SrlEBandTrajectoryCtrl::limitVelocityCurvature(double &curr_max_vel){
 /// getTwistDifferentialDrive(geometry_msgs::Twist& twist_cmd, bool& goal_reached)
 /// =======================================================================================
 bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twist_cmd, bool& goal_reached) {
+
   goal_reached = false;
+  nh_.getParam("/move_base_node/controller_frequency", this->controller_frequency_);
 
   geometry_msgs::Twist robot_cmd, bubble_diff;
   robot_cmd.linear.x = 0.0;
@@ -1218,6 +1225,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
             bubble_diff.linear.x, bubble_diff.linear.y, orientation_diff);
             // goal position reached
             robot_cmd.linear.x = 0.0;
+            old_linear_velocity_ = 0.0;
             robot_cmd.angular.z = 0.0;
             goal_reached = true;
             return true;
@@ -1353,12 +1361,29 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
 
     }
 
+    // TODO: Missing deceleration smoothing. It may be not needed, to have a better counter reaction
+    if(limit_acc_){
 
-    ROS_DEBUG("Selected velocity: lin: %f, ang: %f",
-        linear_velocity, angular_velocity);
+      double increase_vel = old_linear_velocity_ + acc_max_trans_*(1/controller_frequency_);
+      if(increase_vel>linear_velocity){
+          increase_vel = linear_velocity;
+      }
+      old_linear_velocity_ = increase_vel;
+      ROS_DEBUG("Selected velocity: lin: %f, ang: %f",
+          linear_velocity, angular_velocity);
 
-    robot_cmd.linear.x = linear_velocity;
-    robot_cmd.angular.z = angular_velocity;
+      robot_cmd.linear.x = increase_vel;
+      robot_cmd.angular.z = angular_velocity;
+
+    }else{
+
+      ROS_DEBUG("Selected velocity: lin: %f, ang: %f",
+          linear_velocity, angular_velocity);
+
+      robot_cmd.linear.x = linear_velocity;
+      robot_cmd.angular.z = angular_velocity;
+
+    }
 
     previous_angular_error_ = error;
     command_provided = true;

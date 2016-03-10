@@ -208,6 +208,8 @@ namespace srl_eband_local_planner{
       ros::Subscriber sub_front_laser_;
       ros::Subscriber sub_rear_laser_;
       ros::Publisher pub_local_path_;
+      ros::NodeHandle nh_;
+
       dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig> *dr_server_;
       control_toolbox::Pid pid_;
       double circumscribed_radius_;
@@ -279,7 +281,9 @@ namespace srl_eband_local_planner{
       double max_vel_th_hri_;
       double max_vel_lin_hri_;
       bool limit_vel_based_on_hri_;
-    
+      double old_linear_velocity_;
+      bool limit_acc_;
+
       std::string front_laser_frame_;
       std::string rear_laser_frame_;
       std::string rear_laser_topic_;
