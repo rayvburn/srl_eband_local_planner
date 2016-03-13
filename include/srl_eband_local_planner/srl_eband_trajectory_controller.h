@@ -51,6 +51,7 @@
 #include <geometry_msgs/Pose2D.h>
 #include <geometry_msgs/Twist.h>
 
+#include <std_msgs/Bool.h>
 // sensor msg
 #include <sensor_msgs/LaserScan.h>
 
@@ -176,6 +177,9 @@ namespace srl_eband_local_planner{
        */
       void callbackLaserScanReceived(const sensor_msgs::LaserScan& laserscan);
 
+
+      void callbackDrivinDirection(const std_msgs::Bool::ConstPtr& msg);
+
       /**
        * @brief publishLocalPlan, Publishing the final local path
        */
@@ -205,6 +209,7 @@ namespace srl_eband_local_planner{
       // pointer to external objects (do NOT delete object)
       costmap_2d::Costmap2DROS* costmap_ros_; ///<@brief pointer to costmap
       boost::shared_ptr<SrlEBandVisualization> target_visual_; // pointer to visualization object
+      ros::Subscriber sub_current_driving_direction_;
       ros::Subscriber sub_front_laser_;
       ros::Subscriber sub_rear_laser_;
       ros::Publisher pub_local_path_;

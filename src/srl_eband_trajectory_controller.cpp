@@ -232,6 +232,7 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     node_private.getParam("trans_vel_goal", trans_vel_goal_);
     node_private.getParam("start_to_stop_goal",start_to_stop_goal_);
     /// define subscribers
+    sub_current_driving_direction_ = node_private.subscribe("/spencer/nav/current_driving_direction", 1, &SrlEBandTrajectoryCtrl::callbackDrivinDirection, this);
     sub_front_laser_ =  node_private.subscribe(front_laser_topic_, 1, &SrlEBandTrajectoryCtrl::callbackLaserScanReceived, this);
     sub_rear_laser_  =  node_private.subscribe(rear_laser_topic_, 1, &SrlEBandTrajectoryCtrl::callbackLaserScanReceived, this);
     pub_local_path_ = node_private.advertise<nav_msgs::Path>(local_path_topic_, 1);
@@ -287,6 +288,21 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
   }
 }
 
+
+/// =======================================================================================
+/// callbackDrivinDirection
+/// =======================================================================================
+void SrlEBandTrajectoryCtrl::callbackDrivinDirection(const std_msgs::Bool::ConstPtr& msg)
+{
+    // False is backward_motion_on_
+    bool d =  msg->data;
+    if(!d){
+      backward_motion_on_ = true;
+    }
+    else {
+      backward_motion_on_ = false;
+    }
+}
 
 /// =======================================================================================
 /// publishLocalPlan
@@ -1014,17 +1030,18 @@ geometry_msgs::Twist SrlEBandTrajectoryCtrl::checkAccelerationBounds(geometry_ms
 bool SrlEBandTrajectoryCtrl::limitVelocityDensityLaserPoints(double &curr_max_vel, double band_dir){
 
     /// Moving backward rear_laser counts
-    if(fabs(band_dir)<=M_PI/2 ){
+    // if(fabs(band_dir)<=M_PI/2 ){
+    if(!backward_motion_on_){
         if(num_points_front_robot_ > 75){
             curr_max_vel = max_translational_vel_due_to_laser_points_density_;
-            ROS_DEBUG("Limiting Velocity due to too many Laser scans");
+            ROS_DEBUG("Limiting Velocity due to too many Laser scans in (Front)");
         }
     }
     else /// Moving forward front_laser counts
     {
       if(num_points_rear_robot_ > 75){
           curr_max_vel = max_translational_vel_due_to_laser_points_density_;
-          ROS_DEBUG("Limiting Velocity due to too many Laser scans in front of the robot (Rear)");
+          ROS_DEBUG("Limiting Velocity due to too many Laser scans in (Rear)");
       }
 
     }
