@@ -287,6 +287,7 @@ namespace srl_eband_local_planner{
       double max_vel_lin_hri_;
       bool limit_vel_based_on_hri_;
       double old_linear_velocity_;
+      double old_angular_velocity_;
       bool limit_acc_;
 
       std::string front_laser_frame_;

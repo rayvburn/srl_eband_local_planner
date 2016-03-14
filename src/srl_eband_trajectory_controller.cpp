@@ -75,6 +75,7 @@ SrlEBandTrajectoryCtrl::SrlEBandTrajectoryCtrl(std::string name, costmap_2d::Cos
   human_legibility_on_ = true;
   circumscribed_radius_ = 0.67;
   old_linear_velocity_ = 0.00;
+  old_angular_velocity_ = 0.00;
   // initialize planner
   initialize(name, costmap_ros, tf);
   compute_curvature_properties_ = new CurvatureProperties();
@@ -186,6 +187,7 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     max_vel_th_hri_ = 1.57;
     max_vel_lin_hri_ = 1.3;
     old_linear_velocity_ = 0.0;
+    old_angular_velocity_ = 0.0;
     limit_acc_ = true;
     // read parameters from parameter server
     nh_ = node_private;
@@ -1243,6 +1245,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
             // goal position reached
             robot_cmd.linear.x = 0.0;
             old_linear_velocity_ = 0.0;
+            old_angular_velocity_ = 0.0;
             robot_cmd.angular.z = 0.0;
             goal_reached = true;
             return true;
@@ -1389,8 +1392,26 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
       ROS_DEBUG("Selected velocity: lin: %f, ang: %f",
           linear_velocity, angular_velocity);
 
+      int sign_rot = 1;
+      if( (angular_velocity - old_angular_velocity_) >= 0 ){
+        sign_rot = 1;
+      }else{
+        sign_rot = -1;
+      }
+      double increase_ang_vel = old_angular_velocity_ + sign_rot*acc_max_rot_*(1/controller_frequency_);
+
+      if(increase_ang_vel>angular_velocity && sign_rot == 1){
+
+          increase_ang_vel=angular_velocity;
+      }
+
+      if(increase_ang_vel<angular_velocity && sign_rot == -1){
+        increase_ang_vel=angular_velocity;
+
+      }
+      old_angular_velocity_ = increase_ang_vel;
       robot_cmd.linear.x = increase_vel;
-      robot_cmd.angular.z = angular_velocity;
+      robot_cmd.angular.z = increase_ang_vel;
 
     }else{
 
