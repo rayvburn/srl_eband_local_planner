@@ -384,7 +384,11 @@ void SrlEBandTrajectoryCtrl::callbackLaserScanReceived(const sensor_msgs::LaserS
       {
           // Assuming that laser frame is almost equal to the base_link frame,
           // to reduce number of transforms
-
+          // double x = rho*sin(phi);
+          // double y = rho*cos(phi);
+          // if( fabs(x)<0.8 && fabs(y)<1.2) ..
+          //
+          //
           // Check if inside warning radius
           if(rho < warning_robot_radius_ && fabs(phi) < warning_robot_angle_ ){
               //ROS_DEBUG("Value of Phi %f and Rho %f", phi, rho);
@@ -702,24 +706,41 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
     double robot_yaw = tf::getYaw(qcurr_flipped);
     double next_ball_yaw = theta_initial_band_;
 
-    float next_orientation_diff = angles::normalize_angle(next_ball_yaw - robot_yaw);
 
-    if (fabs(next_orientation_diff) > rot_stopping_turn_on_the_spot_) {
 
-      initial_turn_ = true;
-      ROS_WARN("Performing in place rotation for initial turning on the spot (robot_yaw, next_ball_yaw, diff): (%f, %f, %f)",robot_yaw, next_ball_yaw,  next_orientation_diff);
-      double rotation_sign = -2 * (next_orientation_diff < 0) + 1;
-      robot_cmd.angular.z =
-        rotation_sign * min_in_place_vel_th_ + k_p_ * next_orientation_diff;
-      if (fabs(robot_cmd.angular.z) > max_vel_th_) { // limit max rotation
-        robot_cmd.angular.z = rotation_sign * max_vel_th_;
+      // calculate an estimate of the in-place rotation threshold
+      double distance_to_next_bubble = sqrt(
+          bubble_diff.linear.x * bubble_diff.linear.x +
+          bubble_diff.linear.y * bubble_diff.linear.y);
+      double radius_of_next_bubble = 0.7 * elastic_band_.at(1).expansion;
+      double in_place_rotation_threshold =
+        rotation_threshold_multiplier_ *
+        fabs(atan2(radius_of_next_bubble,distance_to_next_bubble));
+      ROS_DEBUG("In-place rotation threshold: %f(%f,%f)",
+          in_place_rotation_threshold, radius_of_next_bubble, distance_to_next_bubble);
+
+      // check if we are above this threshold, if so then perform in-place rotation
+      if (fabs(bubble_diff.angular.z) > in_place_rotation_threshold) {
+        robot_cmd.angular.z = k_p_ * bubble_diff.angular.z;
+        double rotation_sign = (bubble_diff.angular.z < 0) ? -1.0 : +1.0;
+        if (fabs(robot_cmd.angular.z) < min_in_place_vel_th_) {
+          robot_cmd.angular.z = rotation_sign * min_in_place_vel_th_;
+        }
+       //  if (fabs(robot_cmd.angular.z) > max_vel_th_) { // limit max rotation
+         //  robot_cmd.angular.z = rotation_sign * max_vel_th_;
+        // }
+        if (fabs(robot_cmd.angular.z) > max_rotational_velocity_turning_on_spot_) { // limit max rotation
+             robot_cmd.angular.z = rotation_sign * max_rotational_velocity_turning_on_spot_;
+          }
+
+          ROS_ERROR("Performing in place rotation for start (diff): %f", bubble_diff.angular.z, robot_cmd.angular.z);
+        command_provided = true;
+        twist_cmd = robot_cmd;
+        return true;
+
       }
-    } else {
-      initial_turn_ = false;
-      ROS_WARN("Initial Turning on the spot completed");
-    }
-    command_provided = true;
-  }
+
+}
 
   // Check 1
   // We need to check if we are within the threshold of the final destination
@@ -758,8 +779,8 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
     // final turn. The final turn may cause you to move slightly out of
     // position
     // tolerance_trans_
-    if((fabs(bubble_diff.linear.x) <= 0.6 * b_ &&
-        fabs(bubble_diff.linear.y) <= 0.6 * b_) ||
+    if((fabs(bubble_diff.linear.x) <= 0.6 * tolerance_trans_ &&
+        fabs(bubble_diff.linear.y) <= 0.6 * tolerance_trans_) ||
         in_final_goal_turn_) {
       // Calculate orientation difference to goal orientation (not captured in bubble_diff)
       double robot_yaw = tf::getYaw(elastic_band_.at(0).center.pose.orientation);
@@ -784,8 +805,14 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
         robot_cmd.angular.z = 0.0;
         goal_reached = true;
         initial_turn_ = true;
+
+        twist_cmd = robot_cmd;
+        return true;
+
       }
       command_provided = true;
+      twist_cmd = robot_cmd;
+      return true;
     }
   }
 
@@ -1289,7 +1316,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
            robot_cmd.angular.z = rotation_sign * max_rotational_velocity_turning_on_spot_;
         }
 
-        ROS_DEBUG("Performing in place rotation for start (diff): %f", bubble_diff.angular.z, robot_cmd.angular.z);
+        ROS_ERROR("Performing in place rotation for start (diff): %f", bubble_diff.angular.z, robot_cmd.angular.z);
       command_provided = true;
     }
   }
