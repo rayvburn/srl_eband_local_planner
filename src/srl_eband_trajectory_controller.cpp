@@ -690,25 +690,6 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
         theta_initial_band_ =  angles::normalize_angle( tf::getYaw(elastic_band_.at(index_for_direction).center.pose.orientation) - tf::getYaw(elastic_band_.at(0).center.pose.orientation) );
         initial_band_ = true;
     }
-    // Look for current robot pose
-    tf::StampedTransform transform_flipped;
-    try{
-        tf_listener->lookupTransform("odom", robot_frame_, ros::Time(0), transform_flipped);
-    }
-    catch (tf::TransformException ex){
-            ROS_ERROR("%s",ex.what());
-            ros::Duration(1.0).sleep();
-            return false;
-    }
-
-    double x_rob = transform_flipped.getOrigin().x();
-    double y_rob = transform_flipped.getOrigin().y();
-    tf::Quaternion qcurr_flipped = transform_flipped.getRotation();
-    qcurr_flipped.normalize();
-    double robot_yaw = tf::getYaw(qcurr_flipped);
-    double next_ball_yaw = theta_initial_band_;
-
-
 
       // calculate an estimate of the in-place rotation threshold
       double distance_to_next_bubble = sqrt(
@@ -747,7 +728,6 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
         initial_turn_ = false;
 
       }
-
       command_provided = true;
 
 }
@@ -834,24 +814,28 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
   if (!command_provided) {
 
     // Look for current robot pose
-    ROS_DEBUG("Looking for current robot pose");
-    tf::StampedTransform transform;
-    try{
-        tf_listener->lookupTransform("odom", "base_footprint", ros::Time(0), transform);
-    }
-    catch (tf::TransformException ex){
-            ROS_ERROR("%s",ex.what());
-            ros::Duration(1.0).sleep();
-            return false;
-    }
+    // ROS_DEBUG("Looking for current robot pose");
+    // tf::StampedTransform transform;
+    // try{
+    //     tf_listener->lookupTransform(planner_frame_, robot_frame_, ros::Time(0), transform);
+    // }
+    // catch (tf::TransformException ex){
+    //         ROS_ERROR("%s",ex.what());
+    //         ros::Duration(1.0).sleep();
+    //         return false;
+    // }
+    //
+    // x_curr_ = transform.getOrigin().x();
+    // y_curr_ = transform.getOrigin().y();
+    // ROS_DEBUG("Looking for current robot pose, getting quaternion");
+    // tf::Quaternion qcurr = transform.getRotation();
+    // qcurr.normalize();
+    // ROS_DEBUG("Looking for current robot pose, getting yaw angle");
+    // theta_curr_ = set_angle_to_range(tf::getYaw(qcurr), 0);
 
-    x_curr_ = transform.getOrigin().x();
-    y_curr_ = transform.getOrigin().y();
-    ROS_DEBUG("Looking for current robot pose, getting quaternion");
-    tf::Quaternion qcurr = transform.getRotation();
-    qcurr.normalize();
-    ROS_DEBUG("Looking for current robot pose, getting yaw angle");
-    theta_curr_ = set_angle_to_range(tf::getYaw(qcurr), 0);
+    x_curr_ = elastic_band_.at(0).center.pose.position.x;
+    y_curr_ = elastic_band_.at(0).center.pose.position.y;
+    theta_curr_ = tf::getYaw(elastic_band_.at(0).center.pose.orientation);
 
     double err_x, vdx, feedback_v, feedback_w;
     double err_y, vdy;
@@ -997,8 +981,51 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
     // robot_cmd.linear.x = feedback_v;
     // robot_cmd.angular.z = feedback_w;
 
-    robot_cmd.linear.x = linear_velocity;
-    robot_cmd.angular.z = angular_velocity;
+    // Apply acceleration limits
+    if(limit_acc_){
+
+      double increase_vel = old_linear_velocity_ + acc_max_trans_*(1/controller_frequency_);
+      if(increase_vel>linear_velocity){
+          increase_vel = linear_velocity;
+      }
+      old_linear_velocity_ = increase_vel;
+      ROS_DEBUG("Selected velocity: lin: %f, ang: %f",
+          linear_velocity, angular_velocity);
+
+      int sign_rot = 1;
+      if( (angular_velocity - old_angular_velocity_) >= 0 ){
+        sign_rot = 1;
+      }else{
+        sign_rot = -1;
+      }
+      double increase_ang_vel = old_angular_velocity_ + sign_rot*acc_max_rot_*(1/controller_frequency_);
+
+      if(increase_ang_vel>angular_velocity && sign_rot == 1){
+
+          increase_ang_vel=angular_velocity;
+      }
+
+      if(increase_ang_vel<angular_velocity && sign_rot == -1){
+        increase_ang_vel=angular_velocity;
+
+      }
+      old_angular_velocity_ = increase_ang_vel;
+      robot_cmd.linear.x = increase_vel;
+      robot_cmd.angular.z = increase_ang_vel;
+
+    }else{
+
+      ROS_DEBUG("Selected velocity: lin: %f, ang: %f",
+          linear_velocity, angular_velocity);
+
+      robot_cmd.linear.x = linear_velocity;
+      robot_cmd.angular.z = angular_velocity;
+
+    }
+
+
+    // robot_cmd.linear.x = linear_velocity;
+    // robot_cmd.angular.z = angular_velocity;
 
 
     command_provided = true;
@@ -1177,6 +1204,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
 
   goal_reached = false;
   nh_.getParam("/move_base_node/controller_frequency", this->controller_frequency_);
+  int size_band = elastic_band_.size();
 
   geometry_msgs::Twist robot_cmd, bubble_diff;
   robot_cmd.linear.x = 0.0;
@@ -1289,6 +1317,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
             old_angular_velocity_ = 0.0;
             robot_cmd.angular.z = 0.0;
             goal_reached = true;
+            initial_turn_ = true;
             return true;
       }
       command_provided = true;
@@ -1301,9 +1330,64 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
       elastic_band_.at(1).center.pose,
       elastic_band_.at(0).center.pose);
 
+
+      /// TODO: feature added to still move while aligning on displacement which are not huge
+      geometry_msgs::Twist bubble_diff_to_the_goal = getFrame1ToFrame2InRefFrameNew(
+                                        elastic_band_.at(0).center.pose,
+                                          elastic_band_.at(size_band-1).center.pose,
+                                            elastic_band_.at(0).center.pose);
+
+      //Check 0, Turn on the spot if the robot pose is flipped
+      if (!command_provided && initial_turn_ && (fabs(bubble_diff_to_the_goal.linear.x) > 0.6 * tolerance_trans_ &&
+          fabs(bubble_diff_to_the_goal.linear.y) > 0.6 * tolerance_trans_)  ) {
+
+
+          // calculate an estimate of the in-place rotation threshold
+          double distance_to_next_bubble = sqrt(
+              bubble_diff.linear.x * bubble_diff.linear.x +
+              bubble_diff.linear.y * bubble_diff.linear.y);
+          double radius_of_next_bubble = 0.7 * elastic_band_.at(1).expansion;
+          double in_place_rotation_threshold =
+            rotation_threshold_multiplier_ *
+            fabs(atan2(radius_of_next_bubble,distance_to_next_bubble));
+          ROS_DEBUG("In-place rotation threshold: %f(%f,%f)",
+              in_place_rotation_threshold, radius_of_next_bubble, distance_to_next_bubble);
+
+          // check if we are above this threshold, if so then perform in-place rotation
+          if (fabs(bubble_diff.angular.z) > in_place_rotation_threshold) {
+            ROS_WARN("Rotating for the initial turn flipped");
+
+            initial_turn_ = true;
+            robot_cmd.angular.z = k_p_ * bubble_diff.angular.z;
+
+            double rotation_sign = (bubble_diff.angular.z < 0) ? -1.0 : +1.0;
+            if (fabs(robot_cmd.angular.z) < min_in_place_vel_th_) {
+              robot_cmd.angular.z = rotation_sign * min_in_place_vel_th_;
+            }
+
+            if (fabs(robot_cmd.angular.z) > max_rotational_velocity_turning_on_spot_) { // limit max rotation
+                 robot_cmd.angular.z = rotation_sign * max_rotational_velocity_turning_on_spot_;
+            }
+
+              ROS_WARN("Performing in place for the initial turn flipped: %f", bubble_diff.angular.z, robot_cmd.angular.z);
+            command_provided = true;
+            twist_cmd = robot_cmd;
+            return true;
+          }else{
+
+            initial_turn_ = false;
+
+          }
+
+          command_provided = true;
+
+      }
+
+      /// TODO end part
+
+
   // Check 1 - check if the robot's current pose is too misaligned with the next bubble
   if (!command_provided) {
-    ROS_DEBUG("Goal has not been reached, performing checks to move towards goal");
 
     // calculate an estimate of the in-place rotation threshold
     double distance_to_next_bubble = sqrt(
@@ -1318,6 +1402,9 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
 
     // check if we are above this threshold, if so then perform in-place rotation
     if (fabs(bubble_diff.angular.z) > in_place_rotation_threshold) {
+
+      ROS_WARN("Rotating to reduce misaligned with the next bubble");
+
       robot_cmd.angular.z = k_p_ * bubble_diff.angular.z;
       double rotation_sign = (bubble_diff.angular.z < 0) ? -1.0 : +1.0;
       if (fabs(robot_cmd.angular.z) < min_in_place_vel_th_) {
@@ -1330,7 +1417,10 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
            robot_cmd.angular.z = rotation_sign * max_rotational_velocity_turning_on_spot_;
         }
 
-        ROS_ERROR("Performing in place rotation for start (diff): %f", bubble_diff.angular.z, robot_cmd.angular.z);
+        ROS_WARN("Performing in place to reduce misaligned with the next bubble (distance, diff, w):%f  %f %f", distance_to_next_bubble, bubble_diff.angular.z, robot_cmd.angular.z);
+        /// TODO: feature added to still move while aligning on displacement which are not huge
+        if(fabs(bubble_diff.angular.z)<M_PI/3)
+          robot_cmd.linear.x = distance_to_next_bubble/2;
       command_provided = true;
     }
   }
