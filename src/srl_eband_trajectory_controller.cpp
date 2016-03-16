@@ -64,7 +64,7 @@ SrlEBandTrajectoryCtrl::SrlEBandTrajectoryCtrl(std::string name, costmap_2d::Cos
   num_points_rear_robot_ = 0;
   front_laser_topic_ = "/spencer/sensors/laser_front/echo0";
   rear_laser_topic_ = "/spencer/sensors/laser_rear/echo0";
-  local_path_topic_ = "/move_base_node/HANPLocalPlanner/local_plan";
+  local_path_topic_ = "/move_base_node/SrlEBandTrajectoryController/local_plan";
   backward_motion_on_ - true;
   robot_frame_ = "base_link_flipped";
   limit_vel_based_laser_points_density_= true;
@@ -1382,12 +1382,20 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
 
 
 
-    if(human_legibility_on_){
-
-      // generate scaling factores
       base_local_planner::Trajectory local_path;
+   
       context_cost_function_->generateTrajectory(x_rob, y_rob, robot_yaw,
           linear_velocity, angular_velocity, local_path, backward_motion_on_, false);
+
+      publishLocalPlan(local_path);
+     
+     if(human_legibility_on_){
+      
+
+      // generate scaling factores
+     // base_local_planner::Trajectory local_path;
+      ///context_cost_function_->generateTrajectory(x_rob, y_rob, robot_yaw,
+         // linear_velocity, angular_velocity, local_path, backward_motion_on_, false);
       double trajectory_scale = context_cost_function_->scoreTrajectory(local_path);
 
 
