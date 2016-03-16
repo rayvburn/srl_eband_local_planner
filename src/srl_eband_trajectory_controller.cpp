@@ -634,6 +634,7 @@ double SrlEBandTrajectoryCtrl::set_angle_to_range(double alpha, double min)
 /// getTwistUnicycle(geometry_msgs::Twist& twist_cmd, bool& goal_reached)
 /// =======================================================================================
 bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, bool& goal_reached){
+  nh_.getParam("/move_base_node/controller_frequency", this->controller_frequency_);
 
   goal_reached = false;
   int size_band = elastic_band_.size();
@@ -674,6 +675,7 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
   //Check 0, Turn on the spot if the robot pose is flipped
   if (!command_provided && initial_turn_ && (fabs(bubble_diff_to_the_goal.linear.x) > 0.6 * tolerance_trans_ &&
       fabs(bubble_diff_to_the_goal.linear.y) > 0.6 * tolerance_trans_)  ) {
+
 
     ROS_WARN("Turning on the spot starting");
     // Storing second point of the band to turn to that direction
