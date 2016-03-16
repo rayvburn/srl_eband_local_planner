@@ -677,7 +677,7 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
       fabs(bubble_diff_to_the_goal.linear.y) > 0.6 * tolerance_trans_)  ) {
 
 
-    ROS_WARN("Turning on the spot starting");
+    ROS_DEBUG("Turning on the spot starting");
     // Storing second point of the band to turn to that direction
     if(initial_band_ == false){
         int index_for_direction = 1;
@@ -723,7 +723,10 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
 
       // check if we are above this threshold, if so then perform in-place rotation
       if (fabs(bubble_diff.angular.z) > in_place_rotation_threshold) {
+
+        initial_turn_ = true;
         robot_cmd.angular.z = k_p_ * bubble_diff.angular.z;
+
         double rotation_sign = (bubble_diff.angular.z < 0) ? -1.0 : +1.0;
         if (fabs(robot_cmd.angular.z) < min_in_place_vel_th_) {
           robot_cmd.angular.z = rotation_sign * min_in_place_vel_th_;
@@ -739,10 +742,17 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
         command_provided = true;
         twist_cmd = robot_cmd;
         return true;
+      }else{
+
+        initial_turn_ = false;
 
       }
 
+      command_provided = true;
+
 }
+
+
 
   // Check 1
   // We need to check if we are within the threshold of the final destination
@@ -781,9 +791,9 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
     // final turn. The final turn may cause you to move slightly out of
     // position
     // tolerance_trans_
-    if((fabs(bubble_diff.linear.x) <= 0.6 * tolerance_trans_ &&
-        fabs(bubble_diff.linear.y) <= 0.6 * tolerance_trans_) ||
-        in_final_goal_turn_) {
+    if((fabs(bubble_diff.linear.x) <= 0.8 * tolerance_trans_ &&
+        fabs(bubble_diff.linear.y) <= 0.8 * tolerance_trans_) ||
+        in_final_goal_turn_ && elastic_band_.size() < 3) {
       // Calculate orientation difference to goal orientation (not captured in bubble_diff)
       double robot_yaw = tf::getYaw(elastic_band_.at(0).center.pose.orientation);
       double goal_yaw = tf::getYaw(elastic_band_.at((int)elastic_band_.size() - 1).center.pose.orientation);
@@ -799,7 +809,7 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
         }
       } else {
         in_final_goal_turn_ = false; // Goal reached
-        ROS_INFO ("TrajectoryController: Goal reached with distance %.2f, %.2f (od = %.2f)"
+        ROS_DEBUG ("TrajectoryController: Goal reached with distance %.2f, %.2f (od = %.2f)"
             "; sending zero velocity",
             bubble_diff.linear.x, bubble_diff.linear.y, orientation_diff);
         // goal position reached
@@ -807,6 +817,7 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
         robot_cmd.angular.z = 0.0;
         goal_reached = true;
         initial_turn_ = true;
+        in_final_goal_turn_ = false; // Goal reached
 
         twist_cmd = robot_cmd;
         return true;
@@ -841,8 +852,6 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
     qcurr.normalize();
     ROS_DEBUG("Looking for current robot pose, getting yaw angle");
     theta_curr_ = set_angle_to_range(tf::getYaw(qcurr), 0);
-
-
 
     double err_x, vdx, feedback_v, feedback_w;
     double err_y, vdy;
@@ -958,17 +967,20 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
     // Scale velocity if it is over the thrs.
     double forward_sign = -2 * (bubble_diff.linear.x < 0) + 1;
     double max_vel_lin = max_vel_lin_;
-    if (distance_from_goal < 0.75f) {
-      max_vel_lin = (max_vel_lin < 0.3) ? 0.15 : max_vel_lin / 2;
+
+    if (distance_from_goal < start_to_stop_goal_) {
+      //max_vel_lin = (max_vel_lin < 0.3) ? 0.15 : max_vel_lin / 2 ;
+      max_vel_lin = (max_vel_lin < 0.3) ? 0.15 : trans_vel_goal_ ;
     }
+
 
     double linear_velocity = feedback_v;
     linear_velocity *= cos(bubble_diff.angular.z); //decrease while turning
 
-    if (fabs(linear_velocity) > max_vel_lin_) {
-        linear_velocity = forward_sign * max_vel_lin_;
+    if (fabs(linear_velocity) > max_vel_lin) {
+        linear_velocity = forward_sign * max_vel_lin;
     } else if (fabs(linear_velocity) < min_vel_lin_) {
-        linear_velocity = forward_sign * min_vel_lin_;
+        linear_velocity = forward_sign * max_vel_lin;
 
     }else{
     }
@@ -1383,14 +1395,14 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
 
 
       base_local_planner::Trajectory local_path;
-   
+
       context_cost_function_->generateTrajectory(x_rob, y_rob, robot_yaw,
           linear_velocity, angular_velocity, local_path, backward_motion_on_, false);
 
       publishLocalPlan(local_path);
-     
+
      if(human_legibility_on_){
-      
+
 
       // generate scaling factores
      // base_local_planner::Trajectory local_path;
