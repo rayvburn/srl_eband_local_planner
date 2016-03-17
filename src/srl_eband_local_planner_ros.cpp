@@ -373,7 +373,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
 
         if(trigger_hri_ && cnt_tracks_in_front_>0 &&
           (collision_warning_rear_ && dir_planning_<0) ||
-          (collision_warning_front_ && dir_planning_>0) ){
+          (collision_warning_front_ && dir_planning_>0) ) {
 
             ROS_DEBUG_NAMED("Eband_HRI","sending HRI string ");
             std_msgs::String robot_voice;
