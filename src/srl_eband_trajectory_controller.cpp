@@ -1445,7 +1445,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
 
     double linear_velocity = velocity_multiplier * max_vel_lin;
     ROS_DEBUG("Linar Velocity before checking the turn %f", linear_velocity);
-    linear_velocity *= cos(2*bubble_diff.angular.z); //decrease while turning
+    linear_velocity *= fabs(cos(2*bubble_diff.angular.z)); //decrease while turning
 
     /// Verify now limits
 
@@ -1457,13 +1457,21 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
 
     if(limit_vel_based_on_hri_)
       limitVelocityHRI(linear_velocity);
+    /// TODO: is it possible to skip a possible change of sign ??
 
     ROS_DEBUG("Linar Velocity before after the turn %f", linear_velocity);
     if (fabs(linear_velocity) > max_vel_lin_) {
-      linear_velocity = forward_sign * max_vel_lin_;
+      linear_velocity = max_vel_lin_;
     } else if (fabs(linear_velocity) < min_vel_lin_) {
-      linear_velocity = forward_sign * min_vel_lin_;
+      linear_velocity = min_vel_lin_;
     }
+    //
+    // ROS_DEBUG("Linar Velocity before after the turn %f", linear_velocity);
+    // if (fabs(linear_velocity) > max_vel_lin_) {
+    //   linear_velocity = forward_sign * max_vel_lin_;
+    // } else if (fabs(linear_velocity) < min_vel_lin_) {
+    //   linear_velocity = forward_sign * min_vel_lin_;
+    // }
 
     // Select an angular velocity (based on PID controller)
     double error = bubble_diff.angular.z;

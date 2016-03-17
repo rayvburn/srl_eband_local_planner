@@ -317,59 +317,10 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
          }
          ROS_DEBUG("Costmap name %s", (costmap_ros_->getName()).c_str());
 
-
-
-        // if(costmap_layers_handler_->isObstacleLayerEnabled() &&
-        //       !enable_obstacle_layer_){
-        //   if(!costmap_layers_handler_->enableObstacleLayer(false))
-        //   {
-        //     ROS_ERROR("Could not plan due to issues during disabling of the Obstacle layer");
-        //     costmap_layers_handler_->enableObstacleLayer(true);
-        //     return false;
-        //   }
-        //   ROS_INFO("Disabling Obstacle layer in srl_eband_local_planner");
-        // }
-        //
-        //
-        // if(!costmap_layers_handler_->isObstacleLayerEnabled() &&
-        //       enable_obstacle_layer_)
-        // {
-        //   if(!costmap_layers_handler_->enableObstacleLayer(true))
-        //   {
-        //     ROS_ERROR("Could not plan due to issues during enabling of the Obstacle layer");
-        //     costmap_layers_handler_->enableObstacleLayer(false);
-        //     return false;
-        //   }
-        //   ROS_INFO("Enabling Obstacle layer in srl_eband_local_planner");
-        // }
-        //
-        //
-        // if(costmap_layers_handler_->isSocialLayerEnabled() &&
-        //       !enable_social_layer_){
-        //   if(!costmap_layers_handler_->enableSocialLayer(false))
-        //   {
-        //     ROS_ERROR("Could not plan due to issues during disabling of the Social layer");
-        //     costmap_layers_handler_->enableSocialLayer(true);
-        //     return false;
-        //   }
-        //   ROS_INFO("Disabling Social layer in srl_eband_local_planner");
-        // }
-        //
-        // if(!costmap_layers_handler_->isSocialLayerEnabled() &&
-        //       enable_social_layer_)
-        // {
-        //   if(!costmap_layers_handler_->enableSocialLayer(true))
-        //   {
-        //     ROS_ERROR("Could not plan due to issues during enabling of the Social layer");
-        //     costmap_layers_handler_->enableSocialLayer(false);
-        //     return false;
-        //   }
-        //   ROS_INFO("Enabling Social layer in srl_eband_local_planner");
-        // }
-
         ROS_DEBUG("Setting costmap layers ended");
         eband_->setCostMap(costmap_ros_);
         eband_trj_ctrl_->setCostMap(costmap_ros_);
+        eband_trj_ctrl_->setDifferentialDriveVelLimits(max_lin_vel_hri_,1.57);
 
         if(trigger_hri_ && cnt_tracks_in_front_>0 &&
           (collision_warning_rear_ && dir_planning_<0) ||
@@ -380,14 +331,13 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
             robot_voice.data = hr_message_;
             pub_hri_message_.publish(robot_voice);
 
-            eband_trj_ctrl_->setDifferentialDriveVelLimits(max_lin_vel_hri_,1.57);
 
         }else{
 
           ROS_DEBUG_NAMED("Eband_HRI","NO HRI, trigger_hri_ %d, cnt_tracks_in_front_ %d",
         trigger_hri_, cnt_tracks_in_front_);
 
-            eband_trj_ctrl_->setDifferentialDriveVelLimits(max_lin_vel_,1.57);
+            //eband_trj_ctrl_->setDifferentialDriveVelLimits(max_lin_vel_,1.57);
 
 
         }
