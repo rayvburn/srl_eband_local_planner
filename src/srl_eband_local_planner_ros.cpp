@@ -323,10 +323,11 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         eband_trj_ctrl_->setDifferentialDriveVelLimits(max_lin_vel_hri_,1.57);
 
         if(trigger_hri_ && cnt_tracks_in_front_>0 &&
-          (collision_warning_rear_ && dir_planning_<0) ||
-          (collision_warning_front_ && dir_planning_>0) ) {
+         ( (collision_warning_rear_ && dir_planning_<0) ||
+          (collision_warning_front_ && dir_planning_>0)) ){
 
-            ROS_DEBUG_NAMED("Eband_HRI","sending HRI string ");
+            ROS_WARN_NAMED("Eband_HRI","sending HRI string ");
+            ROS_WARN_NAMED("Eband_HRI","Trigger %d, cnt_tracks_in_front %d", trigger_hri_, cnt_tracks_in_front_);
             std_msgs::String robot_voice;
             robot_voice.data = hr_message_;
             pub_hri_message_.publish(robot_voice);
