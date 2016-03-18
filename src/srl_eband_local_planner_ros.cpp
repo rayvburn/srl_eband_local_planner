@@ -84,7 +84,8 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         max_lin_vel_=1.3;
         max_lin_vel_hri_ = 1.3;
         cnt_tracks_in_front_ = 0;
-
+        time_hri_last_ = 0;
+        waiting_time_hri_message_ = 5.0;
         // copy adress of costmap and Transform Listener (handed over from move_base)
         costmap_ros_ = costmap_ros;
         costmap_ros_initial_ = costmap_ros;
@@ -320,28 +321,32 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         ROS_DEBUG("Setting costmap layers ended");
         eband_->setCostMap(costmap_ros_);
         eband_trj_ctrl_->setCostMap(costmap_ros_);
-        eband_trj_ctrl_->setDifferentialDriveVelLimits(max_lin_vel_hri_,1.57);
+        // if(trigger_hri_ && cnt_tracks_in_front_>0 &&
+        double time_hri_now =ros::Time::now().toSec();
 
-        if(trigger_hri_ && cnt_tracks_in_front_>0 &&
-         ( (collision_warning_rear_ && dir_planning_<0) ||
-          (collision_warning_front_ && dir_planning_>0)) ){
+        if( fabs(time_hri_now - time_hri_last_)> waiting_time_hri_message_  )
+        {
 
-            ROS_WARN_NAMED("Eband_HRI","sending HRI string ");
-            ROS_WARN_NAMED("Eband_HRI","Trigger %d, cnt_tracks_in_front %d", trigger_hri_, cnt_tracks_in_front_);
-            std_msgs::String robot_voice;
-            robot_voice.data = hr_message_;
-            pub_hri_message_.publish(robot_voice);
+            if(trigger_hri_ && ( (collision_warning_rear_ && dir_planning_<0) ||
+            (collision_warning_front_ && dir_planning_>0)) ){
+
+              ROS_WARN_NAMED("Eband_HRI","sending HRI string ");
+              ROS_WARN_NAMED("Eband_HRI","Trigger %d, cnt_tracks_in_front %d", trigger_hri_, cnt_tracks_in_front_);
+              std_msgs::String robot_voice;
+              robot_voice.data = hr_message_;
+              pub_hri_message_.publish(robot_voice);
+              eband_trj_ctrl_->setDifferentialDriveVelLimits(max_lin_vel_hri_,1.57);
+              time_hri_last_ = time_hri_now;
+
+          }else{
+
+            ROS_DEBUG_NAMED("Eband_HRI","NO HRI, trigger_hri_ %d, cnt_tracks_in_front_ %d",
+            trigger_hri_, cnt_tracks_in_front_);
+              eband_trj_ctrl_->setDifferentialDriveVelLimits(max_lin_vel_,1.57);
+          }
+      }
 
 
-        }else{
-
-          ROS_DEBUG_NAMED("Eband_HRI","NO HRI, trigger_hri_ %d, cnt_tracks_in_front_ %d",
-        trigger_hri_, cnt_tracks_in_front_);
-
-            //eband_trj_ctrl_->setDifferentialDriveVelLimits(max_lin_vel_,1.57);
-
-
-        }
         return true;
     }
 
@@ -422,6 +427,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       hr_message_ = config.hr_message;
       max_lin_vel_ = config.max_vel_lin_dyn;;
       max_lin_vel_hri_ = config.limit_vel_based_on_hri;
+      waiting_time_hri_message_ = config.waiting_time_hri_message;
       eband_->callbackDynamicReconfigure(config,level);
       eband_trj_ctrl_->callbackDynamicReconfigure(config,level);
 
