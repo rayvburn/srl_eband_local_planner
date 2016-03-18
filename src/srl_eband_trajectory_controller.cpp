@@ -1419,7 +1419,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
 
         ROS_WARN("Performing in place to reduce misaligned with the next bubble (distance, diff, w):%f  %f %f", distance_to_next_bubble, bubble_diff.angular.z, robot_cmd.angular.z);
         /// TODO: feature added to still move while aligning on displacement which are not huge
-        if(fabs(bubble_diff.angular.z)<M_PI/3)
+        if(fabs(bubble_diff.angular.z)<M_PI/4)
           robot_cmd.linear.x = fabs(distance_to_next_bubble)/2;
       command_provided = true;
     }
