@@ -242,7 +242,8 @@ namespace srl_eband_local_planner{
       double max_ang_range_tracks_;
       int cnt_tracks_in_front_;
       std::string hr_message_;
-
+      double time_hri_last_;
+      double waiting_time_hri_message_;
       /**
        * @brief Odometry-Callback: function is called whenever a new odometry msg is published on that topic
        * @param Pointer to the received message
