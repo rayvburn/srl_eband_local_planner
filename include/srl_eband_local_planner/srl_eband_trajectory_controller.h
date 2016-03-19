@@ -71,6 +71,8 @@
 #include <srl_eband_local_planner/curvature_properties.h>
 #include <srl_eband_local_planner/context_cost_function.h>
 
+#include <srl_eband_local_planner/check_points_on_path.h>
+
 namespace srl_eband_local_planner{
 
   /**
@@ -299,6 +301,9 @@ namespace srl_eband_local_planner{
       bool human_legibility_on_;
 
       hanp_local_planner::ContextCostFunction *context_cost_function_;
+      check_points_on_path::CheckPointsOnPath *check_laser_on_path_;
+      bool laser_points_on_band_;
+
       ///@brief defines sign of a double
       inline double sign(double n)
       {

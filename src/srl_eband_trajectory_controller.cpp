@@ -37,6 +37,8 @@
 
 #include <srl_eband_local_planner/srl_eband_trajectory_controller.h>
 #include <tf/transform_datatypes.h>
+
+
 /// these are platform dependent, we could set them as params
 #define TRANS_VEL_ABS_LIMIT  1.0
 #define ROT_VEL_ABS_LIMIT 1.57;
@@ -145,6 +147,7 @@ void SrlEBandTrajectoryCtrl::callbackDynamicReconfigure(srl_eband_local_planner:
   max_translational_vel_due_to_laser_points_density_ = config.max_translational_vel_due_to_laser_points_density_dyn;
   warning_robot_angle_ = config.warning_robot_angle_dyn;
   warning_robot_radius_ = config.warning_robot_radius_dyn;
+  check_laser_on_path_->setPathDistance(warning_robot_radius_);
   max_rotational_velocity_turning_on_spot_ = config.max_rotational_velocity_turning_on_spot_dyn;
   human_legibility_on_ = config.human_legibility_on_dyn;
   trans_vel_goal_ = config.trans_vel_goal_dyn;
@@ -189,6 +192,7 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     old_linear_velocity_ = 0.0;
     old_angular_velocity_ = 0.0;
     limit_acc_ = true;
+    laser_points_on_band_ = false;
     // read parameters from parameter server
     nh_ = node_private;
     node_private.param("max_vel_lin", max_vel_lin_, 1.0);
@@ -283,6 +287,8 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
 
     circumscribed_radius_ = getCircumscribedRadius(*costmap_ros_);
 
+    check_laser_on_path_ = new check_points_on_path::CheckPointsOnPath();
+
   }
   else
   {
@@ -370,6 +376,7 @@ void SrlEBandTrajectoryCtrl::callbackLaserScanReceived(const sensor_msgs::LaserS
         }
   }
 
+  laser_points_on_band_ = false;
 
   for(size_t p_i = 0; p_i < laserscan.ranges.size(); p_i++) {
 
@@ -382,12 +389,26 @@ void SrlEBandTrajectoryCtrl::callbackLaserScanReceived(const sensor_msgs::LaserS
 
       if(is_in_range)
       {
+        // TODO: need to convert a laser scan into the cartesian coordinate.
+        if(limit_vel_based_laser_points_density_)
+        {
+          double x = rho*cos(phi);
+          double y = rho*sin(phi);
+          geometry_msgs::PoseStamped p;
+          p.header.frame_id = laserscan.header.frame_id;
+          p.pose.position.x =  x;
+          p.pose.position.y =  y;
+          geometry_msgs::PoseStamped pt = transformPose(p);
+          bool check = check_laser_on_path_->checkLaserPointInside(
+            pt.pose.position.x,  pt.pose.position.y);
+
+          if(check){
+            ROS_WARN("Check point is inside %d", check);
+            laser_points_on_band_ = true;
+          }
+        }
           // Assuming that laser frame is almost equal to the base_link frame,
           // to reduce number of transforms
-          // double x = rho*sin(phi);
-          // double y = rho*cos(phi);
-          // if( fabs(x)<0.8 && fabs(y)<1.2) ..
-          //
           //
           // Check if inside warning radius
           if(rho < warning_robot_radius_ && fabs(phi) < warning_robot_angle_ ){
@@ -442,9 +463,28 @@ bool SrlEBandTrajectoryCtrl::setBand(const std::vector<Bubble>& elastic_band)
 {
   elastic_band_ = elastic_band;
   band_set_ = true;
+
+  std::vector<geometry_msgs::PoseStamped> tmp_plan;
+  for(int i = 0; i < ((int) elastic_band_.size()); i++)
+  {
+    geometry_msgs::PoseStamped p;
+    p.header = elastic_band_[i].center.header;
+    p.pose.position.x =  (elastic_band_[i].center.pose.position.x );
+    p.pose.position.y =  (elastic_band_[i].center.pose.position.y );
+    p.pose.orientation = elastic_band_[i].center.pose.orientation;
+    geometry_msgs::PoseStamped pt = transformPose(p);
+    tmp_plan.push_back( pt );
+  }
+  check_laser_on_path_->setPath(tmp_plan);
+
   return true;
+
+
   previous_angular_error_=0;
   integral_angular_=0;
+
+
+
 
   if(tracker_on_){
       // create local variables
@@ -1101,20 +1141,27 @@ bool SrlEBandTrajectoryCtrl::limitVelocityDensityLaserPoints(double &curr_max_ve
 
     /// Moving backward rear_laser counts
     // if(fabs(band_dir)<=M_PI/2 ){
-    if(!backward_motion_on_){
-        if(num_points_front_robot_ > 75){
-            curr_max_vel = max_translational_vel_due_to_laser_points_density_;
-            ROS_DEBUG("Limiting Velocity due to too many Laser scans in (Front)");
-        }
-    }
-    else /// Moving forward front_laser counts
-    {
-      if(num_points_rear_robot_ > 75){
-          curr_max_vel = max_translational_vel_due_to_laser_points_density_;
-          ROS_DEBUG("Limiting Velocity due to too many Laser scans in (Rear)");
-      }
+    // if(!backward_motion_on_){
+    //     if(num_points_front_robot_ > 75){
+    //         curr_max_vel = max_translational_vel_due_to_laser_points_density_;
+    //         ROS_DEBUG("Limiting Velocity due to too many Laser scans in (Front)");
+    //     }
+    // }
+    // else /// Moving forward front_laser counts
+    // {
+    //   if(num_points_rear_robot_ > 75){
+    //       curr_max_vel = max_translational_vel_due_to_laser_points_density_;
+    //       ROS_DEBUG("Limiting Velocity due to too many Laser scans in (Rear)");
+    //   }
+    //
+    // }
 
+
+    if(laser_points_on_band_){
+        curr_max_vel = max_translational_vel_due_to_laser_points_density_;
+        ROS_DEBUG("Limiting Velocity due to too many Laser scans in (Rear)");
     }
+
 
     return true;
 }

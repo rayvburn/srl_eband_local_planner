@@ -126,6 +126,7 @@ add_library(srl_eband_local_planner
   src/srl_eband_trajectory_controller.cpp
 	src/context_cost_function.cpp
   src/costmap_layers_dyn_rec_handler.cpp
+  src/check_points_on_path.cpp
 )
 
 # add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_gencfg)
