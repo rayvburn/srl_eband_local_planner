@@ -403,7 +403,7 @@ void SrlEBandTrajectoryCtrl::callbackLaserScanReceived(const sensor_msgs::LaserS
             pt.pose.position.x,  pt.pose.position.y);
 
           if(check){
-            ROS_WARN("Check point is inside %d", check);
+            ROS_WARN("A point is inside the Elastic Band %d", check);
             laser_points_on_band_ = true;
           }
         }
@@ -464,18 +464,20 @@ bool SrlEBandTrajectoryCtrl::setBand(const std::vector<Bubble>& elastic_band)
   elastic_band_ = elastic_band;
   band_set_ = true;
 
-  std::vector<geometry_msgs::PoseStamped> tmp_plan;
-  for(int i = 0; i < ((int) elastic_band_.size()); i++)
-  {
-    geometry_msgs::PoseStamped p;
-    p.header = elastic_band_[i].center.header;
-    p.pose.position.x =  (elastic_band_[i].center.pose.position.x );
-    p.pose.position.y =  (elastic_band_[i].center.pose.position.y );
-    p.pose.orientation = elastic_band_[i].center.pose.orientation;
-    geometry_msgs::PoseStamped pt = transformPose(p);
-    tmp_plan.push_back( pt );
+  if(limit_vel_based_laser_points_density_){
+    std::vector<geometry_msgs::PoseStamped> tmp_plan;
+    for(int i = 0; i < ((int) elastic_band_.size()); i++)
+    {
+      geometry_msgs::PoseStamped p;
+      p.header = elastic_band_[i].center.header;
+      p.pose.position.x =  (elastic_band_[i].center.pose.position.x );
+      p.pose.position.y =  (elastic_band_[i].center.pose.position.y );
+      p.pose.orientation = elastic_band_[i].center.pose.orientation;
+      geometry_msgs::PoseStamped pt = transformPose(p);
+      tmp_plan.push_back( pt );
+    }
+    check_laser_on_path_->setPath(tmp_plan);
   }
-  check_laser_on_path_->setPath(tmp_plan);
 
   return true;
 
