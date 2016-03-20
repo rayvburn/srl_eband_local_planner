@@ -403,7 +403,7 @@ void SrlEBandTrajectoryCtrl::callbackLaserScanReceived(const sensor_msgs::LaserS
             pt.pose.position.x,  pt.pose.position.y);
 
           if(check){
-            ROS_WARN("A point is inside the Elastic Band %d", check);
+            ROS_DEBUG("A point is inside the Elastic Band %d", check);
             laser_points_on_band_ = true;
           }
         }
@@ -1439,7 +1439,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
   if (!command_provided) {
 
     // calculate an estimate of the in-place rotation threshold
-    double distance_to_next_bubble = sqrt(
+   double distance_to_next_bubble = sqrt(
         bubble_diff.linear.x * bubble_diff.linear.x +
         bubble_diff.linear.y * bubble_diff.linear.y);
     double radius_of_next_bubble = 0.7 * elastic_band_.at(1).expansion;
@@ -1468,9 +1468,12 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
 
         ROS_WARN("Performing in place to reduce misaligned with the next bubble (distance, diff, w):%f  %f %f", distance_to_next_bubble, bubble_diff.angular.z, robot_cmd.angular.z);
         /// TODO: feature added to still move while aligning on displacement which are not huge
-        if(fabs(bubble_diff.angular.z)<M_PI/4)
-          robot_cmd.linear.x = fabs(distance_to_next_bubble)/2;
-      command_provided = true;
+        //if(fabs(bubble_diff.angular.z)<M_PI/4)
+         // robot_cmd.linear.x = fabs(distance_to_next_bubble)/2;
+        robot_cmd.linear.x = 0;
+        command_provided = true;
+         twist_cmd = robot_cmd;
+        return true;
     }
   }
 
