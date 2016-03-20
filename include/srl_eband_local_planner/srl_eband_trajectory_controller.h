@@ -201,6 +201,20 @@ namespace srl_eband_local_planner{
       void setDifferentialDriveVelLimits(double v, double w);
 
       /**
+      * @brief set limits on the velocity
+      * @return void
+      */
+      void setDifferentialDriveHRIVelLimits(double v, double w);
+
+      /**
+      * @brief set limits on the velocity
+      * @return void
+      */
+      void setCollisionStatus(bool collision_warning_front,
+                                        bool collision_warning_rear);
+
+
+      /**
       * @brief set the limits of the Velocity during HRI
       * @return void
       */
@@ -304,6 +318,11 @@ namespace srl_eband_local_planner{
       check_points_on_path::CheckPointsOnPath *check_laser_on_path_;
       bool laser_points_on_band_;
 
+
+      bool collision_warning_front_;
+      bool collision_warning_rear_;
+      double max_vel_collision_warning_;
+      bool limit_vel_collision_warnings_;
       ///@brief defines sign of a double
       inline double sign(double n)
       {
@@ -352,6 +371,13 @@ namespace srl_eband_local_planner{
        * @return true if nothing bad happened
        */
       bool limitVelocityDensityLaserPoints(double &curr_max_vel, double band_dir);
+
+      /**
+       * @brief limits the max translational  based on the current collision warnings
+       * @param curr_max_vel, current max velocity
+       * @return true if nothing bad happened
+       */
+      bool limitVelocityCollisionWarnings(double &curr_max_vel);
 
       /**
        * @brief gets the max velocity allowed within this bubble depending on size of the bubble and pose and size of the following bubble

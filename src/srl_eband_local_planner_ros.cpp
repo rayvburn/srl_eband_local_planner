@@ -324,6 +324,8 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         // if(trigger_hri_ && cnt_tracks_in_front_>0 &&
         double time_hri_now =ros::Time::now().toSec();
 
+
+
         if( fabs(time_hri_now - time_hri_last_)> waiting_time_hri_message_  )
         {
 
@@ -335,14 +337,14 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
               std_msgs::String robot_voice;
               robot_voice.data = hr_message_;
               pub_hri_message_.publish(robot_voice);
-              eband_trj_ctrl_->setDifferentialDriveVelLimits(max_lin_vel_hri_,1.57);
+              eband_trj_ctrl_->setDifferentialDriveHRIVelLimits(max_lin_vel_hri_,1.57);
               time_hri_last_ = time_hri_now;
 
           }else{
 
             ROS_DEBUG_NAMED("Eband_HRI","NO HRI, trigger_hri_ %d, cnt_tracks_in_front_ %d",
             trigger_hri_, cnt_tracks_in_front_);
-              eband_trj_ctrl_->setDifferentialDriveVelLimits(max_lin_vel_,1.57);
+              eband_trj_ctrl_->setDifferentialDriveHRIVelLimits(max_lin_vel_,1.57);
           }
       }
 
@@ -378,7 +380,8 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         collision_error_front_    = msg->collisionError;
         //collision_error_front_    = msg->collisionError && (dir_planning_>0);
         collision_warning_front_  = msg->collisionWarning;
-        // ROS_DEBUG("Srl Global Planner checking collision status, Error: %d, Warning: %d", collision_error_, collision_warning_);
+
+
         return;
 
     }
@@ -558,12 +561,18 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         return false;
       }
 
+      // check if robot is in still position
       if( (collision_error_front_ || collision_error_rear_) && robot_still_position_){
 
         ROS_ERROR("The local planner can't go on for a collision error, unstuck Behaviour");
         return false;
 
       }
+
+      /// setting collision status
+      eband_trj_ctrl_->setCollisionStatus(collision_warning_front_ || collision_error_front_,
+                                                  collision_warning_rear_ || collision_error_rear_);
+
 
       if(check_costmap_layers_)
         setCostmapsLayers();

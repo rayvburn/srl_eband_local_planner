@@ -93,6 +93,31 @@ SrlEBandTrajectoryCtrl::~SrlEBandTrajectoryCtrl() {
 
 }
 
+
+/// ==================================================================================
+/// setCollisionStatus()
+/// ==================================================================================
+void SrlEBandTrajectoryCtrl::setCollisionStatus(bool collision_warning_front,
+                                  bool collision_warning_rear){
+
+
+      collision_warning_front_ = collision_warning_front;
+      collision_warning_rear_ = collision_warning_rear;
+
+      return ;
+
+}
+
+
+/// ==================================================================================
+/// setDifferentialDriveHRIVelLimits()
+/// ==================================================================================
+void SrlEBandTrajectoryCtrl::setDifferentialDriveHRIVelLimits(double v, double w){
+
+      ROS_DEBUG_NAMED("Eband_HRI","Setting the max Velocities for HRI (%f, %f)", v, w);
+      max_vel_lin_hri_ = v;
+      return;
+}
 /// ==================================================================================
 /// setCostMap()
 /// ==================================================================================
@@ -107,7 +132,7 @@ void SrlEBandTrajectoryCtrl::setCostMap(costmap_2d::Costmap2DROS* costmap_ros){
 void SrlEBandTrajectoryCtrl::setDifferentialDriveVelLimits(double v, double w){
 
       ROS_DEBUG_NAMED("Eband_HRI","Setting the max Velocities (%f, %f)", v, w);
-      max_vel_lin_hri_ = v;
+      max_vel_lin_ = v;
       return;
 }
 
@@ -157,6 +182,10 @@ void SrlEBandTrajectoryCtrl::callbackDynamicReconfigure(srl_eband_local_planner:
               config.sim_time, config.publish_predictions, config.publish_curr_traj);
 
   limit_vel_based_on_hri_ = config.limit_vel_based_on_hri;
+
+  limit_vel_collision_warnings_ = config.limit_vel_based_collision_warnings;
+  max_vel_collision_warning_ = config.max_vel_collision_warning;
+
   if(backward_motion_on_){
     robot_frame_ = "base_link_flipped";
   }else{
@@ -269,25 +298,22 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
 
     // set initialized flag
     initialized_ = true;
-
-
     initial_turn_ = true;
     initial_band_ = false;
-
     x_initial_band_ = 0;
     y_initial_band_ = 0;
     theta_initial_band_ = 0;
-
     tracker_on_ = false;
     path_id_ = 0;
     limit_vel_based_on_curvature_ = true;
-
     context_cost_function_ =  new hanp_local_planner::ContextCostFunction();
     context_cost_function_->initialize(planner_frame_, tf_listener);
-
     circumscribed_radius_ = getCircumscribedRadius(*costmap_ros_);
-
     check_laser_on_path_ = new check_points_on_path::CheckPointsOnPath();
+    max_vel_collision_warning_ = 0.4;
+    limit_vel_collision_warnings_ = true;
+    collision_warning_rear_ = false;
+    collision_warning_front_ = false;
 
   }
   else
@@ -1141,23 +1167,6 @@ geometry_msgs::Twist SrlEBandTrajectoryCtrl::checkAccelerationBounds(geometry_ms
 /// =======================================================================================
 bool SrlEBandTrajectoryCtrl::limitVelocityDensityLaserPoints(double &curr_max_vel, double band_dir){
 
-    /// Moving backward rear_laser counts
-    // if(fabs(band_dir)<=M_PI/2 ){
-    // if(!backward_motion_on_){
-    //     if(num_points_front_robot_ > 75){
-    //         curr_max_vel = max_translational_vel_due_to_laser_points_density_;
-    //         ROS_DEBUG("Limiting Velocity due to too many Laser scans in (Front)");
-    //     }
-    // }
-    // else /// Moving forward front_laser counts
-    // {
-    //   if(num_points_rear_robot_ > 75){
-    //       curr_max_vel = max_translational_vel_due_to_laser_points_density_;
-    //       ROS_DEBUG("Limiting Velocity due to too many Laser scans in (Rear)");
-    //   }
-    //
-    // }
-
 
     if(laser_points_on_band_){
         curr_max_vel = max_translational_vel_due_to_laser_points_density_;
@@ -1168,6 +1177,24 @@ bool SrlEBandTrajectoryCtrl::limitVelocityDensityLaserPoints(double &curr_max_ve
     return true;
 }
 
+/// =======================================================================================
+/// limitVelocityCollisionWarnings()
+/// =======================================================================================
+bool SrlEBandTrajectoryCtrl::limitVelocityCollisionWarnings(double &curr_max_vel){
+
+  if( (collision_warning_rear_ && !backward_motion_on_) ||
+  (collision_warning_front_ && backward_motion_on_))
+
+  if(curr_max_vel>max_vel_collision_warning_)
+    curr_max_vel = max_vel_collision_warning_;
+
+    return true;
+
+
+}
+/// =======================================================================================
+/// limitVelocityHRI()
+/// =======================================================================================
 bool SrlEBandTrajectoryCtrl::limitVelocityHRI(double &curr_max_vel){
 
   if(curr_max_vel>max_vel_th_hri_)
@@ -1500,6 +1527,8 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
     linear_velocity *= fabs(cos(2*bubble_diff.angular.z)); //decrease while turning
 
     /// Verify now limits
+    if(limit_vel_collision_warnings_)
+        limitVelocityCollisionWarnings(linear_velocity);
 
     if(limit_vel_based_laser_points_density_)
       limitVelocityDensityLaserPoints(linear_velocity, bubble_diff.angular.z);
@@ -1509,7 +1538,6 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
 
     if(limit_vel_based_on_hri_)
       limitVelocityHRI(linear_velocity);
-    /// TODO: is it possible to skip a possible change of sign ??
 
     ROS_DEBUG("Linar Velocity before after the turn %f", linear_velocity);
     if (fabs(linear_velocity) > max_vel_lin_) {
