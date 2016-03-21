@@ -218,6 +218,11 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     start_to_stop_goal_ = 2.25;
     max_vel_th_hri_ = 1.57;
     max_vel_lin_hri_ = 1.3;
+
+    min_vel_th_ = 0.1;
+    max_vel_th_ = 1.57;
+    min_in_place_vel_th_ = 0.15;
+    in_place_trans_vel_ = 0.0;
     old_linear_velocity_ = 0.0;
     old_angular_velocity_ = 0.0;
     limit_acc_ = true;
@@ -1541,39 +1546,6 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
     if(limit_vel_based_on_hri_)
       limitVelocityHRI(linear_velocity);
 
-    ROS_DEBUG("Linar Velocity before after the turn %f", linear_velocity);
-    if (fabs(linear_velocity) > max_vel_lin_) {
-      linear_velocity = max_vel_lin_;
-    } else if (fabs(linear_velocity) < min_vel_lin_) {
-      linear_velocity = min_vel_lin_;
-    }
-    //
-    // ROS_DEBUG("Linar Velocity before after the turn %f", linear_velocity);
-    // if (fabs(linear_velocity) > max_vel_lin_) {
-    //   linear_velocity = forward_sign * max_vel_lin_;
-    // } else if (fabs(linear_velocity) < min_vel_lin_) {
-    //   linear_velocity = forward_sign * min_vel_lin_;
-    // }
-
-    // Select an angular velocity (based on PID controller)
-    double error = bubble_diff.angular.z;
-    integral_angular_ = integral_angular_ + error*(1/controller_frequency_);
-    double derivative_angular = (error - previous_angular_error_)*controller_frequency_;
-
-    double rotation_sign = -2 * (bubble_diff.angular.z < 0) + 1;
-    /// Only Propotinal term
-    double angular_velocity = k_p_ * error;
-
-    // double angular_velocity = k_p_ * error + k_one_ * integral_angular_ + k_two_*derivative_angular;
-
-    if (fabs(angular_velocity) > max_vel_th_) {
-      angular_velocity = rotation_sign * max_vel_th_;
-    } else if (fabs(angular_velocity) < min_vel_th_) {
-      angular_velocity = rotation_sign * min_vel_th_;
-    }
-
-
-
       base_local_planner::Trajectory local_path;
 
       context_cost_function_->generateTrajectory(x_rob, y_rob, robot_yaw,
@@ -1651,6 +1623,40 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
       robot_cmd.angular.z = angular_velocity;
 
     }
+
+
+    ROS_DEBUG("Linar Velocity before after the turn %f", linear_velocity);
+    if (fabs(linear_velocity) > max_vel_lin_) {
+      linear_velocity = max_vel_lin_;
+    } else if (fabs(linear_velocity) < min_vel_lin_) {
+      linear_velocity = min_vel_lin_;
+    }
+    //
+    // ROS_DEBUG("Linar Velocity before after the turn %f", linear_velocity);
+    // if (fabs(linear_velocity) > max_vel_lin_) {
+    //   linear_velocity = forward_sign * max_vel_lin_;
+    // } else if (fabs(linear_velocity) < min_vel_lin_) {
+    //   linear_velocity = forward_sign * min_vel_lin_;
+    // }
+
+    // Select an angular velocity (based on PID controller)
+    double error = bubble_diff.angular.z;
+    integral_angular_ = integral_angular_ + error*(1/controller_frequency_);
+    double derivative_angular = (error - previous_angular_error_)*controller_frequency_;
+
+    double rotation_sign = -2 * (bubble_diff.angular.z < 0) + 1;
+    /// Only Propotinal term
+    double angular_velocity = k_p_ * error;
+
+    // double angular_velocity = k_p_ * error + k_one_ * integral_angular_ + k_two_*derivative_angular;
+
+    if (fabs(angular_velocity) > max_vel_th_) {
+      angular_velocity = rotation_sign * max_vel_th_;
+    } else if (fabs(angular_velocity) < min_vel_th_) {
+      angular_velocity = rotation_sign * min_vel_th_;
+    }
+
+    
 
     previous_angular_error_ = error;
     command_provided = true;
