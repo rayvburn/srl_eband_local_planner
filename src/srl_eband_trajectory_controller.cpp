@@ -1546,6 +1546,43 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
     if(limit_vel_based_on_hri_)
       limitVelocityHRI(linear_velocity);
 
+
+
+
+
+    ROS_DEBUG("Linar Velocity before after the turn %f", linear_velocity);
+    if (fabs(linear_velocity) > max_vel_lin_) {
+      linear_velocity = max_vel_lin_;
+    } else if (fabs(linear_velocity) < min_vel_lin_) {
+      linear_velocity = min_vel_lin_;
+    }
+    //
+    // ROS_DEBUG("Linar Velocity before after the turn %f", linear_velocity);
+    // if (fabs(linear_velocity) > max_vel_lin_) {
+    //   linear_velocity = forward_sign * max_vel_lin_;
+    // } else if (fabs(linear_velocity) < min_vel_lin_) {
+    //   linear_velocity = forward_sign * min_vel_lin_;
+    // }
+
+    // Select an angular velocity (based on PID controller)
+    double error = bubble_diff.angular.z;
+    integral_angular_ = integral_angular_ + error*(1/controller_frequency_);
+    double derivative_angular = (error - previous_angular_error_)*controller_frequency_;
+
+    double rotation_sign = -2 * (bubble_diff.angular.z < 0) + 1;
+    /// Only Propotinal term
+    double angular_velocity = k_p_ * error;
+
+    // double angular_velocity = k_p_ * error + k_one_ * integral_angular_ + k_two_*derivative_angular;
+
+    if (fabs(angular_velocity) > max_vel_th_) {
+      angular_velocity = rotation_sign * max_vel_th_;
+    } else if (fabs(angular_velocity) < min_vel_th_) {
+      angular_velocity = rotation_sign * min_vel_th_;
+    }
+
+
+
       base_local_planner::Trajectory local_path;
 
       context_cost_function_->generateTrajectory(x_rob, y_rob, robot_yaw,
@@ -1582,6 +1619,9 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
 
     }
 
+
+
+
     // TODO: Missing deceleration smoothing. It may be not needed, to have a better counter reaction
     if(limit_acc_){
 
@@ -1591,72 +1631,40 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
       }
       old_linear_velocity_ = increase_vel;
       ROS_DEBUG("Selected velocity: lin: %f, ang: %f",
-          linear_velocity, angular_velocity);
+          linear_velocity);
 
-      int sign_rot = 1;
-      if( (angular_velocity - old_angular_velocity_) >= 0 ){
-        sign_rot = 1;
-      }else{
-        sign_rot = -1;
-      }
-      double increase_ang_vel = old_angular_velocity_ + sign_rot*acc_max_rot_*(1/controller_frequency_);
-
-      if(increase_ang_vel>angular_velocity && sign_rot == 1){
-
-          increase_ang_vel=angular_velocity;
-      }
-
-      if(increase_ang_vel<angular_velocity && sign_rot == -1){
-        increase_ang_vel=angular_velocity;
-
-      }
-      old_angular_velocity_ = increase_ang_vel;
+      // int sign_rot = 1;
+      // if( (angular_velocity - old_angular_velocity_) >= 0 ){
+      //   sign_rot = 1;
+      // }else{
+      //   sign_rot = -1;
+      // }
+      // double increase_ang_vel = old_angular_velocity_ + sign_rot*acc_max_rot_*(1/controller_frequency_);
+      //
+      // if(increase_ang_vel>angular_velocity && sign_rot == 1){
+      //
+      //     increase_ang_vel=angular_velocity;
+      // }
+      //
+      // if(increase_ang_vel<angular_velocity && sign_rot == -1){
+      //   increase_ang_vel=angular_velocity;
+      //
+      // }
+      // old_angular_velocity_ = increase_ang_vel;
       robot_cmd.linear.x = increase_vel;
-      robot_cmd.angular.z = increase_ang_vel;
+      // robot_cmd.angular.z = increase_ang_vel;
 
     }else{
 
       ROS_DEBUG("Selected velocity: lin: %f, ang: %f",
-          linear_velocity, angular_velocity);
+          linear_velocity);
 
       robot_cmd.linear.x = linear_velocity;
-      robot_cmd.angular.z = angular_velocity;
+      // robot_cmd.angular.z = angular_velocity;
 
     }
 
 
-    ROS_DEBUG("Linar Velocity before after the turn %f", linear_velocity);
-    if (fabs(linear_velocity) > max_vel_lin_) {
-      linear_velocity = max_vel_lin_;
-    } else if (fabs(linear_velocity) < min_vel_lin_) {
-      linear_velocity = min_vel_lin_;
-    }
-    //
-    // ROS_DEBUG("Linar Velocity before after the turn %f", linear_velocity);
-    // if (fabs(linear_velocity) > max_vel_lin_) {
-    //   linear_velocity = forward_sign * max_vel_lin_;
-    // } else if (fabs(linear_velocity) < min_vel_lin_) {
-    //   linear_velocity = forward_sign * min_vel_lin_;
-    // }
-
-    // Select an angular velocity (based on PID controller)
-    double error = bubble_diff.angular.z;
-    integral_angular_ = integral_angular_ + error*(1/controller_frequency_);
-    double derivative_angular = (error - previous_angular_error_)*controller_frequency_;
-
-    double rotation_sign = -2 * (bubble_diff.angular.z < 0) + 1;
-    /// Only Propotinal term
-    double angular_velocity = k_p_ * error;
-
-    // double angular_velocity = k_p_ * error + k_one_ * integral_angular_ + k_two_*derivative_angular;
-
-    if (fabs(angular_velocity) > max_vel_th_) {
-      angular_velocity = rotation_sign * max_vel_th_;
-    } else if (fabs(angular_velocity) < min_vel_th_) {
-      angular_velocity = rotation_sign * min_vel_th_;
-    }
-
-    
 
     previous_angular_error_ = error;
     command_provided = true;
