@@ -222,7 +222,7 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     min_vel_th_ = 0.1;
     max_vel_th_ = 1.57;
     min_in_place_vel_th_ = 0.15;
-    in_place_trans_vel_ = 0.0;
+    in_place_trans_vel_ = 0.15;
     old_linear_velocity_ = 0.0;
     old_angular_velocity_ = 0.0;
     limit_acc_ = true;
@@ -1452,7 +1452,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
                  robot_cmd.angular.z = rotation_sign * max_rotational_velocity_turning_on_spot_;
             }
 
-              ROS_WARN("Performing in place for the initial turn flipped: %f", bubble_diff.angular.z, robot_cmd.angular.z);
+            ROS_WARN("Performing in place for the initial turn flipped: %f", bubble_diff.angular.z, robot_cmd.angular.z);
             command_provided = true;
             twist_cmd = robot_cmd;
             return true;
@@ -1546,10 +1546,6 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
     if(limit_vel_based_on_hri_)
       limitVelocityHRI(linear_velocity);
 
-
-
-
-
     ROS_DEBUG("Linar Velocity before after the turn %f", linear_velocity);
     if (fabs(linear_velocity) > max_vel_lin_) {
       linear_velocity = max_vel_lin_;
@@ -1619,9 +1615,6 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
 
     }
 
-
-
-
     // TODO: Missing deceleration smoothing. It may be not needed, to have a better counter reaction
     if(limit_acc_){
 
@@ -1631,7 +1624,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
       }
       old_linear_velocity_ = increase_vel;
       ROS_DEBUG("Selected velocity: lin: %f, ang: %f",
-          linear_velocity);
+          linear_velocity, angular_velocity);
 
       // int sign_rot = 1;
       // if( (angular_velocity - old_angular_velocity_) >= 0 ){
@@ -1652,19 +1645,17 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
       // }
       // old_angular_velocity_ = increase_ang_vel;
       robot_cmd.linear.x = increase_vel;
-      // robot_cmd.angular.z = increase_ang_vel;
+      robot_cmd.angular.z = angular_velocity;
 
     }else{
 
       ROS_DEBUG("Selected velocity: lin: %f, ang: %f",
-          linear_velocity);
+          linear_velocity, angular_velocity);
 
       robot_cmd.linear.x = linear_velocity;
-      // robot_cmd.angular.z = angular_velocity;
+      robot_cmd.angular.z = angular_velocity;
 
     }
-
-
 
     previous_angular_error_ = error;
     command_provided = true;
