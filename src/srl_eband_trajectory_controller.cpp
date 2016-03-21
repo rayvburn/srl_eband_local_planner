@@ -437,7 +437,7 @@ void SrlEBandTrajectoryCtrl::callbackLaserScanReceived(const sensor_msgs::LaserS
             pt.pose.position.x,  pt.pose.position.y, &point_path_distance);
 
           if(check && point_path_distance<max_path_length_to_check_points_){
-            ROS_WARN("A point is inside the Elastic Band %d, dist %f", check, point_path_distance );
+            ROS_DEBUG("A point is inside the Elastic Band %d, dist %f", check, point_path_distance );
             laser_points_on_band_ = true;
           }
         }
