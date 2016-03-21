@@ -553,7 +553,12 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
 
 
     bool SrlEBandPlannerROS::computeVelocityCommands(geometry_msgs::Twist& cmd_vel)
-    {
+    { 
+
+      // initialize to zero the velocities
+        cmd_vel.linear.x = 0;
+        cmd_vel.angular.z = 0;
+
       // check if plugin initialized
       if(!initialized_)
       {

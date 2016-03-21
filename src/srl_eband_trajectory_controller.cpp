@@ -228,7 +228,7 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     node_private.param("max_vel_th", max_vel_th_, 1.57);
     node_private.param("min_vel_lin", min_vel_lin_, 0.1);
     node_private.param("min_vel_th", min_vel_th_, 0.0);
-    node_private.param("min_in_place_vel_th", min_in_place_vel_th_, 0.0);
+    node_private.param("min_in_place_vel_th", min_in_place_vel_th_, 0.15);
     node_private.param("in_place_trans_vel", in_place_trans_vel_, 0.0);
     node_private.param("rot_stopping_turn_on_the_spot", rot_stopping_turn_on_the_spot_, 0.05);
     node_private.param("xy_goal_tolerance", tolerance_trans_, 0.35);
@@ -1371,13 +1371,14 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
         in_final_goal_turn_ = true;
         double rotation_sign = -2 * (orientation_diff < 0) + 1;
         robot_cmd.angular.z = rotation_sign * min_in_place_vel_th_ + k_p_ * orientation_diff;
-
+        robot_cmd.linear.x = 0;
         // if (fabs(robot_cmd.angular.z) > max_vel_th_) { // limit max rotation
         //   robot_cmd.angular.z = rotation_sign * max_vel_th_;
         // }
 
         if (fabs(robot_cmd.angular.z) > max_rotational_velocity_turning_on_spot_) { // limit max rotation
           robot_cmd.angular.z = rotation_sign * max_rotational_velocity_turning_on_spot_;
+          robot_cmd.linear.x = 0;
         }
           ROS_DEBUG("Performing in place rotation for goal (diff,w): %f %f", orientation_diff, robot_cmd.angular.z );
 
@@ -1397,6 +1398,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
             return true;
       }
       command_provided = true;
+        return true;
     }
   }
 
@@ -1432,7 +1434,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
           // check if we are above this threshold, if so then perform in-place rotation
           if (fabs(bubble_diff.angular.z) > in_place_rotation_threshold) {
             ROS_WARN("Rotating for the initial turn flipped");
-
+            robot_cmd.linear.x = 0;
             initial_turn_ = true;
             robot_cmd.angular.z = k_p_ * bubble_diff.angular.z;
 
