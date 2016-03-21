@@ -59,6 +59,7 @@ SrlEBandTrajectoryCtrl::SrlEBandTrajectoryCtrl(std::string name, costmap_2d::Cos
   controller_frequency_ = 6.66;
   curvature_guarding_thrs_ = 0.65;
   warning_robot_radius_ = 2.0;
+  max_path_length_to_check_points_ = 4.0;
   min_vel_limited_curvature_ = 0.35;
   front_laser_frame_ = "laser_front_link";
   rear_laser_frame_ = "laser_rear_link";
@@ -172,6 +173,7 @@ void SrlEBandTrajectoryCtrl::callbackDynamicReconfigure(srl_eband_local_planner:
   max_translational_vel_due_to_laser_points_density_ = config.max_translational_vel_due_to_laser_points_density_dyn;
   warning_robot_angle_ = config.warning_robot_angle_dyn;
   warning_robot_radius_ = config.warning_robot_radius_dyn;
+  max_path_length_to_check_points_ = config.max_path_length_to_check_points;
   check_laser_on_path_->setPathDistance(warning_robot_radius_);
   max_rotational_velocity_turning_on_spot_ = config.max_rotational_velocity_turning_on_spot_dyn;
   human_legibility_on_ = config.human_legibility_on_dyn;
@@ -430,11 +432,12 @@ void SrlEBandTrajectoryCtrl::callbackLaserScanReceived(const sensor_msgs::LaserS
           p.pose.position.x =  x;
           p.pose.position.y =  y;
           geometry_msgs::PoseStamped pt = transformPose(p);
+          double point_path_distance=0;
           bool check = check_laser_on_path_->checkLaserPointInside(
-            pt.pose.position.x,  pt.pose.position.y);
+            pt.pose.position.x,  pt.pose.position.y, &point_path_distance);
 
-          if(check){
-            ROS_DEBUG("A point is inside the Elastic Band %d", check);
+          if(check && point_path_distance<max_path_length_to_check_points_){
+            ROS_WARN("A point is inside the Elastic Band %d, dist %f", check, point_path_distance );
             laser_points_on_band_ = true;
           }
         }
@@ -1626,24 +1629,26 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
       ROS_DEBUG("Selected velocity: lin: %f, ang: %f",
           linear_velocity, angular_velocity);
 
-      // int sign_rot = 1;
-      // if( (angular_velocity - old_angular_velocity_) >= 0 ){
-      //   sign_rot = 1;
-      // }else{
-      //   sign_rot = -1;
-      // }
-      // double increase_ang_vel = old_angular_velocity_ + sign_rot*acc_max_rot_*(1/controller_frequency_);
-      //
-      // if(increase_ang_vel>angular_velocity && sign_rot == 1){
-      //
-      //     increase_ang_vel=angular_velocity;
-      // }
-      //
-      // if(increase_ang_vel<angular_velocity && sign_rot == -1){
-      //   increase_ang_vel=angular_velocity;
-      //
-      // }
-      // old_angular_velocity_ = increase_ang_vel;
+      int sign_rot = 1;
+      if( (angular_velocity - old_angular_velocity_) >= 0 ){
+        sign_rot = 1;
+      }else{
+        sign_rot = -1;
+      }
+      double increase_ang_vel = old_angular_velocity_ + sign_rot*acc_max_rot_*(1/controller_frequency_);
+
+      if(increase_ang_vel>angular_velocity && sign_rot == 1){
+
+          increase_ang_vel=angular_velocity;
+      }
+
+      if(increase_ang_vel<angular_velocity && sign_rot == -1){
+        increase_ang_vel=angular_velocity;
+
+      }
+      old_angular_velocity_ = increase_ang_vel;
+
+
       robot_cmd.linear.x = increase_vel;
       robot_cmd.angular.z = angular_velocity;
 
@@ -1658,7 +1663,10 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
     }
 
     previous_angular_error_ = error;
+    twist_cmd = robot_cmd;
+
     command_provided = true;
+    return true;
   }
 
   twist_cmd = robot_cmd;

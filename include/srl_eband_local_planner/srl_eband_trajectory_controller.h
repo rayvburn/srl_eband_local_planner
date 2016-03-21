@@ -317,7 +317,7 @@ namespace srl_eband_local_planner{
       hanp_local_planner::ContextCostFunction *context_cost_function_;
       check_points_on_path::CheckPointsOnPath *check_laser_on_path_;
       bool laser_points_on_band_;
-
+      double max_path_length_to_check_points_;
 
       bool collision_warning_front_;
       bool collision_warning_rear_;

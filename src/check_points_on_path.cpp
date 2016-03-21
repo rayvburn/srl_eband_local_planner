@@ -174,7 +174,7 @@ std::pair<double, bool> CheckPointsOnPath
 /// \brief calcbiasorientation(double x, double y, Eigen::MatrixXd path)
 /// ---------------------------------------------------------------------------
 bool CheckPointsOnPath
-::checkLaserPointInside(double x, double y){
+::checkLaserPointInside(double x, double y, double *point_path_distance){
   if( path_ == NULL ){
     return false;
   }
@@ -196,9 +196,17 @@ bool CheckPointsOnPath
   vector<double> alphavec;
   alphavec.resize(N);
   Array4D sample = {{x, y, 0, 0}};
+  double dist_proj_on_the_path = 0;
+  double acc_dist_proj_on_the_path = 0;
   // Given a sample x,y, loop over path segments and determine closest
   // segment, respective projection point, and if it is inside its nearest segment
   for (int n=0; n<(N-1); n++){
+
+        if(n>0){
+          double dx = ((*path_)(n,0) - (*path_)(n-1,0));
+          double dy = ((*path_)(n,1) - (*path_)(n-1,1));
+          acc_dist_proj_on_the_path += sqrt(dx*dx + dy*dy);
+        }
 
         Array4D xfrom = {{ (*path_)(n,0), (*path_)(n,1), 0, 0}};
         Array4D xto = {{ (*path_)(n+1,0), (*path_)(n+1,1), 0, 0}};
@@ -216,6 +224,9 @@ bool CheckPointsOnPath
               xfmin = xf;
               isinmin = isin;
             }
+
+            dist_proj_on_the_path = acc_dist_proj_on_the_path;
+            *point_path_distance = dist_proj_on_the_path;
         }else{
             if(dout<dmin && (fabs(dout-dmin) > 0.0000000001 ))
             {

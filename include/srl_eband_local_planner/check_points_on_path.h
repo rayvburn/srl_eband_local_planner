@@ -68,7 +68,7 @@ namespace check_points_on_path{
       std::pair<double, bool> distance2Segment(Array4D x, Array4D xs,
                                         Array4D xe,  Array4D &proj, double &dout);
 
-      bool checkLaserPointInside(double x, double y);
+      bool checkLaserPointInside(double x, double y, double *point_path_distance);
 
       bool setPathDistance(double p);
 
