@@ -1280,7 +1280,6 @@ bool SrlEBandTrajectoryCtrl::limitVelocityCurvature(double &curr_max_vel){
 }
 
 
-
 /// =======================================================================================
 /// getTwistDifferentialDrive(geometry_msgs::Twist& twist_cmd, bool& goal_reached)
 /// =======================================================================================
@@ -1629,26 +1628,24 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
       ROS_DEBUG("Selected velocity: lin: %f, ang: %f",
           linear_velocity, angular_velocity);
 
-      int sign_rot = 1;
-      if( (angular_velocity - old_angular_velocity_) >= 0 ){
-        sign_rot = 1;
-      }else{
-        sign_rot = -1;
-      }
-      double increase_ang_vel = old_angular_velocity_ + sign_rot*acc_max_rot_*(1/controller_frequency_);
-
-      if(increase_ang_vel>angular_velocity && sign_rot == 1){
-
-          increase_ang_vel=angular_velocity;
-      }
-
-      if(increase_ang_vel<angular_velocity && sign_rot == -1){
-        increase_ang_vel=angular_velocity;
-
-      }
-      old_angular_velocity_ = increase_ang_vel;
-
-
+      // int sign_rot = 1;
+      // if( (angular_velocity - old_angular_velocity_) >= 0 ){
+      //   sign_rot = 1;
+      // }else{
+      //   sign_rot = -1;
+      // }
+      // double increase_ang_vel = old_angular_velocity_ + sign_rot*acc_max_rot_*(1/controller_frequency_);
+      //
+      // if(increase_ang_vel>angular_velocity && sign_rot == 1){
+      //
+      //     increase_ang_vel=angular_velocity;
+      // }
+      //
+      // if(increase_ang_vel<angular_velocity && sign_rot == -1){
+      //   increase_ang_vel=angular_velocity;
+      //
+      // }
+      // old_angular_velocity_ = increase_ang_vel;
       robot_cmd.linear.x = increase_vel;
       robot_cmd.angular.z = angular_velocity;
 
@@ -1663,10 +1660,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
     }
 
     previous_angular_error_ = error;
-    twist_cmd = robot_cmd;
-
     command_provided = true;
-    return true;
   }
 
   twist_cmd = robot_cmd;
@@ -1674,6 +1668,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
   ROS_DEBUG("Final command: %f, %f", twist_cmd.linear.x, twist_cmd.angular.z);
   return true;
 }
+
 
 
 
