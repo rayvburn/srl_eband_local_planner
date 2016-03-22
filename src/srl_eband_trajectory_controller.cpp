@@ -1190,8 +1190,8 @@ bool SrlEBandTrajectoryCtrl::limitVelocityDensityLaserPoints(double &curr_max_ve
 /// =======================================================================================
 bool SrlEBandTrajectoryCtrl::limitVelocityCollisionWarnings(double &curr_max_vel){
 
-  if( (collision_warning_rear_ && !backward_motion_on_) ||
-  (collision_warning_front_ && backward_motion_on_))
+  if( (collision_warning_rear_ && backward_motion_on_) ||
+  (collision_warning_front_ && !backward_motion_on_))
 
   if(curr_max_vel>max_vel_collision_warning_)
     curr_max_vel = max_vel_collision_warning_;
