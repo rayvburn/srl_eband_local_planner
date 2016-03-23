@@ -330,6 +330,36 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
 }
 
 
+
+  /// ==================================================================================
+  /// publishPlan(std::vector<geometry_msgs::PoseStamped>& plan)
+  /// publish Final plan
+  /// ==================================================================================
+  void SrlEBandTrajectoryCtrl::publishRepairedPlan(std::vector<geometry_msgs::PoseStamped>& plan){
+
+    /// To IMPLEMENT
+        nav_msgs::Path path_;
+        ROS_DEBUG("Publishing a path");
+        path_.header.frame_id = plan[0].header.frame_id;;
+        path_.header.stamp = ros::Time();
+        path_.poses.resize((int)plan.size());
+        for (size_t i = 0; i < plan.size(); i++) {
+            geometry_msgs::PoseStamped posei;
+            path_.poses[i].header.stamp = ros::Time();
+            path_.poses[i].header.frame_id = plan[i].header.frame_id;
+            path_.poses[i].pose = plan[i].pose;
+
+        }
+        if(plan.size()>0){
+  
+            pub_local_path_.publish(path_);
+            ROS_DEBUG("Plan Published");
+        }
+
+  }
+
+
+
 /// =======================================================================================
 /// callbackDrivinDirection
 /// =======================================================================================
@@ -510,6 +540,8 @@ bool SrlEBandTrajectoryCtrl::setBand(const std::vector<Bubble>& elastic_band)
       geometry_msgs::PoseStamped pt = transformPose(p);
       tmp_plan.push_back( pt );
     }
+
+    publishRepairedPlan( tmp_plan );
     check_laser_on_path_->setPath(tmp_plan);
   }
 

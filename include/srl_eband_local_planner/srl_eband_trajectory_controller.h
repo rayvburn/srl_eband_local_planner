@@ -188,6 +188,10 @@ namespace srl_eband_local_planner{
       void publishLocalPlan(base_local_planner::Trajectory local_traj);
 
 
+    void publishRepairedPlan(std::vector<geometry_msgs::PoseStamped>& plan);
+
+
+
       /**
       * @brief publishRepairedPlan, Publish final plan
       * @return void
