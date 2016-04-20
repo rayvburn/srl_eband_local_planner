@@ -5,6 +5,9 @@ The srl_eband_local_planner is
 a [ROS] (http://wiki.ros.org) package, that implements a plugin to the
 [base_local_planner](http://wiki.ros.org/base_local_planner) for the
 [move_base](http://wiki.ros.org/move_base) 2D navigation system.
+It is based on the original implementation by Christian Connette and Bhaskara Marathi.
+This local planner has been adapted primarily for differential drive robots,
+but still supports the original holonomic drive controls.
 
 ## Requirements
 * ROS (including visualization rools -> rviz), tested on Indigo and Hydro
