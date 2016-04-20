@@ -1,40 +1,79 @@
 /*********************************************************************
- *
- * Software License Agreement (BSD License)
- *
- *  Copyright (c) 2015, University of Freiburg
- *  All rights reserved.
- *
- *  Redistribution and use in source and binary forms, with or without
- *  modification, are permitted provided that the following conditions
- *  are met:
- *
- *   * Redistributions of source code must retain the above copyright
- *     notice, this list of conditions and the following disclaimer.
- *   * Redistributions in binary form must reproduce the above
- *     copyright notice, this list of conditions and the following
- *     disclaimer in the documentation and/or other materials provided
- *     with the distribution.
- *   * Neither the name of Willow Garage, Inc. nor the names of its
- *     contributors may be used to endorse or promote products derived
- *     from this software without specific prior written permission.
- *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- *  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- *  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- *  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- *  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- *  POSSIBILITY OF SUCH DAMAGE.
- *
- * Author: Luigi Palmieri
- *********************************************************************/
+* Software License Agreement (BSD License)
+*
+*  Copyright (c) 2010, Willow Garage, Inc.
+*  All rights reserved.
+*
+*  Redistribution and use in source and binary forms, with or without
+*  modification, are permitted provided that the following conditions
+*  are met:
+*
+*   * Redistributions of source code must retain the above copyright
+*     notice, this list of conditions and the following disclaimer.
+*   * Redistributions in binary form must reproduce the above
+*     copyright notice, this list of conditions and the following
+*     disclaimer in the documentation and/or other materials provided
+*     with the distribution.
+*   * Neither the name of Willow Garage, Inc. nor the names of its
+*     contributors may be used to endorse or promote products derived
+*     from this software without specific prior written permission.
+*
+*  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+*  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+*  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+*  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+*  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+*  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+*  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+*  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+*  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+*  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+*  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+*  POSSIBILITY OF SUCH DAMAGE.
+*
+* Author: Christian Connette
+*********************************************************************/
 
+/*********************************************************************
+*  srl_eband_local_planner, local planner plugin for move_base based
+*  on the elastic band principle.
+*  License for the srl_eband_local_planner software developed
+*  during the EU FP7 Spencer Projet: new BSD License.
+*
+*  Software License Agreement (BSD License)
+*
+*  Copyright (c) 2015-2016, Luigi Palmieri, University of Freiburg
+*  All rights reserved.
+*
+*  Redistribution and use in source and binary forms, with or without
+*  modification, are permitted provided that the following conditions
+*  are met:
+*
+*   * Redistributions of source code must retain the above copyright
+*     notice, this list of conditions and the following disclaimer.
+*   * Redistributions in binary form must reproduce the above
+*     copyright notice, this list of conditions and the following
+*     disclaimer in the documentation and/or other materials provided
+*     with the distribution.
+*   * Neither the name of University of Freiburg nor the names of its
+*     contributors may be used to endorse or promote products derived
+*     from this software without specific prior written permission.
+*
+*  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+*  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+*  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+*  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+*  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+*  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+*  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+*  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+*  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+*  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+*  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+*  POSSIBILITY OF SUCH DAMAGE.
+*
+* Author: Luigi Palmieri
+*********************************************************************/
 #include <srl_eband_local_planner/srl_eband_local_planner.h>
 
 
@@ -55,6 +94,30 @@ namespace srl_eband_local_planner{
   SrlEBandPlanner::~SrlEBandPlanner()
   {
     delete world_model_;
+  }
+
+
+
+  /// =======================================================================================
+  /// callbackDynamicReconfigure
+  /// =======================================================================================
+  void SrlEBandPlanner::callbackDynamicReconfigure(srl_eband_local_planner::srlEBandLocalPlannerConfig &config, uint32_t level ){
+
+    ROS_DEBUG("Reconfiguring Eband Planner");
+    srlEBandLocalPlannerConfig config_int = config;
+
+    min_bubble_overlap_ = config.eband_min_relative_bubble_overlap_dyn;
+    tiny_bubble_distance_ = config.eband_tiny_bubble_distance_dyn;
+    tiny_bubble_expansion_ = config.eband_tiny_bubble_expansion_dyn;
+    internal_force_gain_ = config.eband_internal_force_gain_dyn;
+    external_force_gain_ = config.eband_external_force_gain_dyn;
+    num_optim_iterations_ = config.num_iterations_eband_optimization_dyn;
+    max_recursion_depth_approx_equi_ = config.eband_equilibrium_approx_max_recursion_depth_dyn;
+    equilibrium_relative_overshoot_ = config.eband_equilibrium_relative_overshoot_dyn;
+    significant_force_= config.eband_significant_force_lower_bound_dyn;
+
+    return;
+
   }
 
 
@@ -90,7 +153,8 @@ namespace srl_eband_local_planner{
       // optimization - force calculation
       pn.param("eband_internal_force_gain", internal_force_gain_, 1.0);
       pn.param("eband_external_force_gain", external_force_gain_, 2.0);
-      pn.param("num_iterations_eband_optimization", num_optim_iterations_, 3);
+
+      pn.param("num_iterations_eband_optimization", num_optim_iterations_, 6);
 
       // recursive approximation of bubble equilibrium position based
       pn.param("eband_equilibrium_approx_max_recursion_depth", max_recursion_depth_approx_equi_, 4);
@@ -100,6 +164,9 @@ namespace srl_eband_local_planner{
       // use this parameter if a different weight is supplied to the costmap in dyn reconfigure
       pn.param("costmap_weight", costmap_weight_, 10.0);
 
+
+      pub_repaired_plan_ = pn.advertise<nav_msgs::Path>("repaired_plan", 5);
+
       // clean up band
       elastic_band_.clear();
 
@@ -108,7 +175,10 @@ namespace srl_eband_local_planner{
 
       // set flag whether visualization availlable to false by default
       visualization_ = false;
-    }
+
+     globalPlannerNav.initialize("globlalPlannerNav_repairing", costmap_ros_);
+
+  }
     else
     {
       ROS_WARN("This planner has already been initialized, doing nothing.");
@@ -122,6 +192,363 @@ namespace srl_eband_local_planner{
     visualization_ = true;
   }
 
+
+  /// ==================================================================================
+  /// setCostMap()
+  /// ==================================================================================
+  void SrlEBandPlanner::setCostMap(costmap_2d::Costmap2DROS* costmap_ros){
+
+    // copy adress of costmap (handed over from move_base via eband wrapper)
+    costmap_ros_ = costmap_ros;
+
+    // get a pointer to the underlying costmap
+    costmap_ = costmap_ros_->getCostmap();
+
+    globalPlannerNav.setCostMap(costmap_ros);
+  }
+
+  /// ==================================================================================
+  /// publishPlan(std::vector<geometry_msgs::PoseStamped>& plan)
+  /// publish Final plan
+  /// ==================================================================================
+  void SrlEBandPlanner::publishRepairedPlan(std::vector<geometry_msgs::PoseStamped>& plan){
+
+    /// To IMPLEMENT
+        nav_msgs::Path path_;
+        ROS_DEBUG("Publishing a path");
+        path_.header.frame_id = plan[0].header.frame_id;;
+        path_.header.stamp = ros::Time();
+        path_.poses.resize((int)plan.size());
+        for (size_t i = 0; i < plan.size(); i++) {
+            geometry_msgs::PoseStamped posei;
+            path_.poses[i].header.stamp = ros::Time();
+            path_.poses[i].header.frame_id = plan[i].header.frame_id;
+            path_.poses[i].pose = plan[i].pose;
+
+        }
+        if(plan.size()>0){
+            pub_repaired_plan_.publish(path_);
+            ROS_DEBUG("Plan Published");
+        }
+
+  }
+
+  /// ==================================================================================
+  /// findClosestObstacle(geometry_msgs::PoseStamped pose, double &min_dist)
+  /// Looking for the closest point
+  /// ==================================================================================
+  int SrlEBandPlanner::findClosestObstacle(geometry_msgs::PoseStamped pose, double &min_dist){
+
+    int n_obstacles = obstacles_points_.size();
+
+    min_dist = 100;
+    int min_i = -1;
+
+    double xp = pose.pose.position.x;
+    double yp = pose.pose.position.y;
+    double curr_dist;
+    for(int i=0; i<n_obstacles; i++){
+
+      curr_dist=sqrt((obstacles_points_.at(i).pose.position.x -xp)*(obstacles_points_.at(i).pose.position.x - xp)
+      + (obstacles_points_.at(i).pose.position.y - yp)*(obstacles_points_.at(i).pose.position.y -yp));
+
+      if(curr_dist<min_dist){
+        min_dist = curr_dist;
+        min_i = i;
+      }
+    }
+
+    return min_i;
+
+  }
+
+  /// ==================================================================================
+  /// repairStripPlan(..)
+  /// Using CHOMP To locally repair the path
+  /// ==================================================================================
+  bool SrlEBandPlanner::repairStripPlan(std::vector<geometry_msgs::PoseStamped> global_plan, std::vector<geometry_msgs::PoseStamped> &repaired_global_plan){
+
+
+
+    ROS_DEBUG("Conversion from plan to elastic band failed. Plan probably not collision free. Plan not set for optimization");
+    ROS_DEBUG("Locally repairing it..");
+    geometry_msgs::PoseStamped start = global_plan.front();
+    geometry_msgs::PoseStamped goal = global_plan.back();
+
+    int size_original_path = global_plan.size();
+    ROS_DEBUG("Original PAth size %d", size_original_path);
+
+
+    bool res = false;
+    int tentatives = 0;
+
+    double dist_i;
+    double dist_safe = (costmap_ros_->getLayeredCostmap())->getInscribedRadius();
+
+    ROS_DEBUG("Inscribed radius or dist safe %f", dist_safe);
+
+    double repulsion_gain = 1.5;
+    double attractive_gain = 1.5;
+
+    obstacles_points_.clear();
+    //1.0 Finding obstacle points into the path
+    int i = 0;
+
+    /// TODO: It could be possible to have an array of all the obstacles read from The
+    /// costmap
+    while( i < size_original_path){
+      // if in error move point
+      geometry_msgs::PoseStamped pose = global_plan.at(i);
+      if(calcObstacleKinematicDistance(pose.pose, dist_i)){
+
+        if(dist_i <= dist_safe){
+          ROS_DEBUG("Distance from the obstacle %d, dist: %f", i, dist_i);
+          obstacles_points_.push_back(pose);
+          ROS_DEBUG("Obstacle added");
+        }
+      }
+      i++;
+    }
+
+
+    //2.0 Apply the Elastic Force to avoid the obstacles
+    repaired_global_plan.clear();
+    ROS_DEBUG("Obstacle Points %d", obstacles_points_.size());
+    ROS_DEBUG("Looking for initial and last point to integrate poses during avoidance");
+
+    geometry_msgs::PoseStamped pose_zero;
+    geometry_msgs::PoseStamped pose_final;
+    geometry_msgs::PoseStamped pose_f;
+
+    int next_free_index = 1;
+
+    Vector xi;			// the trajectory (q_1, q_2, ...q_n)
+    Vector qs;			// the start config a.k.a. q_0
+    Vector qe;			// the end config a.k.a. q_(n+1)
+    static size_t const nq (size_original_path);	// number of q stacked into xi
+    static size_t const cdim (2);	// dimension of config space
+    static size_t const xidim (nq * cdim); // dimension of trajectory, xidim = nq * cdim
+    static double const dt (1.0);	       // time step
+    static double const eta (100.0); // >= 1, regularization factor for gradient descent
+    static double const lambda (1.0); // weight of smoothness objective
+
+    // gradient descent etc
+
+    Matrix AA;			// metric
+    Vector bb;			// acceleration bias for start and end config
+    Matrix Ainv;			// inverse of AA
+
+    /// Initializing components
+    qs.resize (cdim);
+    qs << start.pose.position.x, start.pose.position.y;
+    qe.resize (cdim);
+    qe << goal.pose.position.x, goal.pose.position.y;
+
+    xi = Vector::Zero (xidim);
+    for (size_t ii (0); ii < nq; ++ii) {
+      xi.block (cdim * ii, 0, cdim, 1) = qs;
+    }
+
+    AA = Matrix::Zero (xidim, xidim);
+    for (size_t ii(0); ii < nq; ++ii) {
+      AA.block (cdim * ii, cdim * ii, cdim , cdim) = 2.0 * Matrix::Identity (cdim, cdim);
+      if (ii > 0) {
+        AA.block (cdim * (ii-1), cdim * ii, cdim , cdim) = -1.0 * Matrix::Identity (cdim, cdim);
+        AA.block (cdim * ii, cdim * (ii-1), cdim , cdim) = -1.0 * Matrix::Identity (cdim, cdim);
+      }
+    }
+    AA /= dt * dt * (nq + 1);
+
+    bb = Vector::Zero (xidim);
+    bb.block (0,            0, cdim, 1) = qs;
+    bb.block (xidim - cdim, 0, cdim, 1) = qe;
+    bb /= - dt * dt * (nq + 1);
+
+    Ainv = AA.inverse();
+
+    // TODO: number of CHOMP iteration could be parametrized
+    int N_CHOMP_ITERATIONS = 150;
+    // CHOMP Iterations
+    for(int index_iteration=0; index_iteration<N_CHOMP_ITERATIONS; index_iteration++){
+      // beginning of "the" CHOMP iteration
+      Vector nabla_smooth (AA * xi + bb);
+      Vector const & xidd (nabla_smooth);
+
+      Vector nabla_obs (Vector::Zero (xidim));
+
+      for (size_t iq (0); iq < nq; ++iq) {
+
+        Vector const qq (xi.block (iq * cdim, 0, cdim, 1));
+
+        Vector qd;
+        if (0 == iq) {
+          qd = 0.5 * (xi.block ((iq+1) * cdim, 0, cdim, 1) - qs);
+        }
+        else if (iq == nq - 1) {
+          qd = 0.5 * (qe - xi.block ((iq-1) * cdim, 0, cdim, 1));
+        }
+        else {
+          qd = 0.5 * (xi.block ((iq+1) * cdim, 0, cdim, 1) - xi.block ((iq-1) * cdim, 0, cdim, 1));;
+        }
+
+        Vector const & xx (qq);
+        Vector const & xd (qd);
+        Matrix const JJ (Matrix::Identity (2, 2));
+
+        double const vel (xd.norm());
+        if (vel < 1.0e-3) {	// avoid div by zero further down
+          continue;
+        }
+
+        Vector const xdn (xd / vel);
+        Vector const xdd (JJ * xidd.block (iq * cdim, 0, cdim , 1));
+        Matrix const prj (Matrix::Identity (2, 2) - xdn * xdn.transpose()); // hardcoded planar case
+        Vector const kappa (prj * xdd / pow (vel, 2.0));
+
+        for(int obst_i =0; obst_i<obstacles_points_.size(); obst_i++)
+        {
+          Vector obst = Vector::Zero(2);
+          obst << obstacles_points_[obst_i].pose.position.x, obstacles_points_[obst_i].pose.position.y;
+          Vector delta (xx - obst);
+          double const dist (delta.norm());
+          if((dist >= dist_safe) || (dist < 1e-9)) {
+               continue;
+            }
+          static double const gain (10.0); // hardcoded param
+          double const cost (gain * dist_safe * pow (1.0 - dist / dist_safe, 3.0) / 3.0); // hardcoded param
+          delta *= - gain * pow (1.0 - dist / dist_safe, 2.0) / dist; // hardcoded param
+          nabla_obs.block (iq * cdim, 0, cdim, 1) += JJ.transpose() * vel * (prj * delta - cost * kappa);
+        }
+    }
+
+    Vector dxi (Ainv * (nabla_obs + lambda * nabla_smooth));
+    xi -= dxi / eta;
+
+    // end of "the" CHOMP iteration
+    //////////////////////////////////////////////////
+
+
+    }
+
+    /// Filling up the repaired global plan
+    repaired_global_plan.clear();
+    for (size_t ii (0); ii < nq; ++ii) {
+      geometry_msgs::PoseStamped pi;
+      pi.header = global_plan.at(0).header;
+      pi.header.stamp = ros::Time().now();
+      Vector position = Vector::Zero(2);
+      position = xi.block (ii * cdim, 0, cdim, 1);
+      pi.pose.position.x = position(0);
+      pi.pose.position.y = position(1);
+      repaired_global_plan.push_back(pi);
+
+    }
+
+    res = true;
+    return res;
+
+
+
+  }
+
+bool SrlEBandPlanner::repairPlan(std::vector<geometry_msgs::PoseStamped> global_plan, std::vector<geometry_msgs::PoseStamped> &repaired_global_plan){
+
+
+
+  ROS_DEBUG("Conversion from plan to elastic band failed. Plan probably not collision free. Plan not set for optimization");
+  // TODO try to do local repairs of band
+  ROS_DEBUG("Locally repairing it..");
+  geometry_msgs::PoseStamped start = global_plan.front();
+  geometry_msgs::PoseStamped goal = global_plan.back();
+
+  bool res = false;
+  int tentatives = 0;
+  double initial_start_x = start.pose.position.x;
+  double initial_start_y = start.pose.position.y;
+  double initial_goal_y = goal.pose.position.y;
+  double initial_goal_x = goal.pose.position.x;
+
+  double dist_start_goal = sqrt((initial_goal_x - initial_start_x)*(initial_goal_x - initial_start_x) + (initial_goal_y - initial_start_y)*(initial_goal_y - initial_start_y));
+  int N_tentatives = 9;
+  double bias_dist = 0.5;
+
+  /// 1.0 try to reduce the tollerance and changing goal pose
+  while(!res && tentatives<N_tentatives){
+
+    tentatives++;
+    ROS_DEBUG("Repairing current Tollerance %f", dist_start_goal*((double)tentatives/(double)N_tentatives));
+    ROS_DEBUG("Goal set to %f %f", goal.pose.position.x, goal.pose.position.y);
+
+    res = globalPlannerNav.makePlan(start, goal, dist_start_goal*((double)tentatives/(double)N_tentatives), repaired_global_plan);
+
+
+    if(tentatives == 1){
+      goal.pose.position.x = initial_goal_x + bias_dist;
+      goal.pose.position.y = initial_goal_y;
+    }
+
+    if(tentatives == 2){
+
+      goal.pose.position.x = initial_goal_x ;
+      goal.pose.position.y = initial_goal_y + bias_dist;
+
+    }
+
+
+    if(tentatives == 3){
+      goal.pose.position.x = initial_goal_x ;
+      goal.pose.position.y = initial_goal_y - bias_dist;
+    }
+
+
+    if(tentatives == 4){
+              goal.pose.position.x = initial_goal_x - bias_dist;
+              goal.pose.position.y = initial_goal_y;
+    }
+
+
+    if(tentatives == 5){
+              goal.pose.position.x = initial_goal_x - bias_dist;
+              goal.pose.position.y = initial_goal_y - bias_dist;
+    }
+
+
+    if(tentatives == 6){
+              goal.pose.position.x = initial_goal_x + bias_dist;
+              goal.pose.position.y = initial_goal_y - bias_dist;
+    }
+
+    if(tentatives == 7){
+              goal.pose.position.x = initial_goal_x - bias_dist;
+              goal.pose.position.y = initial_goal_y + bias_dist;
+    }
+
+    if(tentatives == 8){
+              goal.pose.position.x = initial_goal_x + bias_dist;
+              goal.pose.position.y = initial_goal_y + bias_dist;
+    }
+
+
+  }
+
+  if(!res){
+    ROS_DEBUG("Trying to repair, considering a very close goal");
+    /// 2.0 try to select goal only a few points ahaed from the start
+    int size_global_plan = global_plan.size();
+    if(size_global_plan>3){
+      geometry_msgs::PoseStamped goal = global_plan.at(2);
+      res = globalPlannerNav.makePlan(start, goal, repaired_global_plan);
+    }
+    else if(size_global_plan>2)
+     geometry_msgs::PoseStamped goal = global_plan.at(1);
+     res = globalPlannerNav.makePlan(start, goal, repaired_global_plan);
+
+  }
+
+  return res;
+
+
+}
 
   bool SrlEBandPlanner::setPlan(const std::vector<geometry_msgs::PoseStamped>& global_plan)
   {
@@ -154,13 +581,43 @@ namespace srl_eband_local_planner{
 
     // convert frames in path into bubbles in band -> sets center of bubbles and calculates expansion
     ROS_DEBUG("Converting Plan to Band");
-    if(!convertPlanToBand(global_plan_, elastic_band_))
+
+    ROS_DEBUG("Firstly repair the plan locally with a discrete planner");
+    std::vector<geometry_msgs::PoseStamped> repaired_global_plan;
+
+    // bool res = repairPlan(global_plan_, repaired_global_plan);
+    // bool res = repairStripPlan(global_plan_, repaired_global_plan);
+    // publishRepairedPlan(repaired_global_plan);
+    bool res = true;
+    if(res && !convertPlanToBand(repaired_global_plan, elastic_band_))
     {
-      ROS_WARN("Conversion from plan to elastic band failed. Plan probably not collision free. Plan not set for optimization");
-      // TODO try to do local repairs of band
-      return false;
+      std::vector<geometry_msgs::PoseStamped> repaired_global_plan;
+      bool res = repairPlan(global_plan_, repaired_global_plan);
+      // bool res = repairStripPlan(global_plan_, repaired_global_plan);
+      publishRepairedPlan(repaired_global_plan);
+      // eband_visual_->publishRepairedPath(repaired_global_plan);
+
+
+      if(res){
+           if(!convertPlanToBand(repaired_global_plan, elastic_band_)){
+             ROS_ERROR("Failed to convert the repaired path in elastic band");
+             return false;
+           }
+      }else{
+        ROS_ERROR("Local repairing didn't work out!");
+        return false;
+      }
     }
 
+
+
+     if(!convertPlanToBand(global_plan_, elastic_band_)){
+             ROS_ERROR("Failed to convert the repaired path in elastic band");
+             return false;
+
+      }else{
+            ROS_DEBUG("Global plan properly  converted to a band");
+      }
 
     // close gaps and remove redundant bubbles
     ROS_DEBUG("Refining Band");
@@ -261,6 +718,21 @@ namespace srl_eband_local_planner{
     std::vector<Bubble> band_to_add;
     if(!convertPlanToBand(plan_to_add, band_to_add))
     {
+
+      std::vector<geometry_msgs::PoseStamped> repaired_global_plan;
+      bool res = repairPlan(plan_to_add, repaired_global_plan);
+      // bool res = repairStripPlan(plan_to_add, repaired_global_plan);
+      // eband_visual_->publishRepairedPath(repaired_global_plan);
+
+      if(res){
+           if(!convertPlanToBand(repaired_global_plan, band_to_add)){
+             ROS_ERROR("Failed to convert the repaired path while adding elastic band");
+             return false;
+           }
+      }else{
+        ROS_ERROR("Local repairing didn't work out!");
+        return false;
+      }
       ROS_DEBUG("Conversion from plan to elastic band failed. Plan not appended");
       // TODO try to do local repairs of band
       return false;
@@ -440,7 +912,8 @@ namespace srl_eband_local_planner{
     // close gaps and remove redundant bubbles
     if(!refineBand(band))
     {
-      ROS_DEBUG("Elastic Band is broken. Could not close gaps in band. Global replanning needed.");
+
+      ROS_DEBUG("Elastic Band is broken. Could not close gaps in band during optimize band. Global replanning needed.");
       return false;
     }
 
@@ -1826,11 +2299,13 @@ namespace srl_eband_local_planner{
 
     if (disc_cost == costmap_2d::LETHAL_OBSTACLE) {
       // pose is inside an obstacle - very bad
-      distance = 0.0;
-    }	else if (disc_cost == costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
-      // footprint is definitely inside an obstacle - still bad
-      distance = 0.0;
-    } else {
+      distance = 0.0; // original value 0.0
+    }
+    // 	else if (disc_cost == costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
+    //   // footprint is definitely inside an obstacle - still bad
+    //   distance = 0.0;  // original value 0.0
+    // }
+     else {
       if (disc_cost == 0) { // freespace, no estimate of distance
         disc_cost = 1; // lowest non freespace cost
       } else if (disc_cost == 255) { // unknown space, we should never be here
@@ -1878,17 +2353,30 @@ namespace srl_eband_local_planner{
       // calc Size of Bubbles by calculating Dist to nearest Obstacle [depends kinematic, environment]
       if(!calcObstacleKinematicDistance(tmp_band[i].center.pose, distance))
       {
-        // frame must not be immediately in collision -> otherwise calculation of gradient will later be invalid
-        ROS_WARN("Calculation of Distance between bubble and nearest obstacle failed. Frame %d of %d outside map", i, ((int) plan.size()) );
-        return false;
+
+        if((i+1)<(int)plan.size()) // smoothing..
+        {
+          if(!calcObstacleKinematicDistance(tmp_band[i+1].center.pose, distance)){
+            // frame must not be immediately in collision -> otherwise calculation of gradient will later be invalid
+            ROS_WARN("Calculation of Distance  (%f) between bubble and nearest obstacle failed. Frame %d of %d outside map", distance, i, ((int) plan.size()) );
+            return false;
+          }
+        }else{
+
+
+          ROS_WARN("Calculation of Distance  (%f) between bubble and nearest obstacle failed. Frame %d of %d outside map", distance, i, ((int) plan.size()) );
+          return false;
+        }
       }
 
       if(distance <= 0.0)
-      {
+      { /// TODO tentative fix, if we have already an initial portion of the band go on
+        if(tmp_band.size()) break;
+        else return false;
         // frame must not be immediately in collision -> otherwise calculation of gradient will later be invalid
-        ROS_WARN("Calculation of Distance between bubble and nearest obstacle failed. Frame %d of %d in collision. Plan invalid", i, ((int) plan.size()) );
+        ROS_WARN("Calculation of Distance (%f) between bubble and nearest obstacle failed. Frame %d of %d in collision. Plan invalid", distance, i, ((int) plan.size()) );
         // TODO if frame in collision try to repair band instaed of aborting averything
-        return false;
+        // return false;
       }
 
 
@@ -1899,6 +2387,8 @@ namespace srl_eband_local_planner{
     // write to referenced variable
     band = tmp_band;
 
+
+    // modifyBandArtificialForce(band);
     ROS_DEBUG("Successfully converted plan to band");
     return true;
   }

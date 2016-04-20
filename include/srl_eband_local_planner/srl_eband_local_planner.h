@@ -1,44 +1,84 @@
 /*********************************************************************
- *
- * Software License Agreement (BSD License)
- *
- *  Copyright (c) 2015, University of Freiburg
- *  All rights reserved.
- *
- *  Redistribution and use in source and binary forms, with or without
- *  modification, are permitted provided that the following conditions
- *  are met:
- *
- *   * Redistributions of source code must retain the above copyright
- *     notice, this list of conditions and the following disclaimer.
- *   * Redistributions in binary form must reproduce the above
- *     copyright notice, this list of conditions and the following
- *     disclaimer in the documentation and/or other materials provided
- *     with the distribution.
- *   * Neither the name of Willow Garage, Inc. nor the names of its
- *     contributors may be used to endorse or promote products derived
- *     from this software without specific prior written permission.
- *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- *  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- *  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- *  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- *  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- *  POSSIBILITY OF SUCH DAMAGE.
- *
- * Author: Luigi Palmieri
- *********************************************************************/
+*
+* Software License Agreement (BSD License)
+*
+*  Copyright (c) 2010, Willow Garage, Inc.
+*  All rights reserved.
+*
+*  Redistribution and use in source and binary forms, with or without
+*  modification, are permitted provided that the following conditions
+*  are met:
+*
+*   * Redistributions of source code must retain the above copyright
+*     notice, this list of conditions and the following disclaimer.
+*   * Redistributions in binary form must reproduce the above
+*     copyright notice, this list of conditions and the following
+*     disclaimer in the documentation and/or other materials provided
+*     with the distribution.
+*   * Neither the name of Willow Garage, Inc. nor the names of its
+*     contributors may be used to endorse or promote products derived
+*     from this software without specific prior written permission.
+*
+*  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+*  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+*  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+*  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+*  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+*  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+*  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+*  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+*  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+*  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+*  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+*  POSSIBILITY OF SUCH DAMAGE.
+*
+* Author: Christian Connette
+*********************************************************************/
+/*********************************************************************
+*  srl_eband_local_planner, local planner plugin for move_base based
+*  on the elastic band principle.
+*  License for the srl_eband_local_planner software developed
+*  during the EU FP7 Spencer Projet: new BSD License.
+*
+*  Software License Agreement (BSD License)
+*
+*  Copyright (c) 2015-2016, Luigi Palmieri, University of Freiburg
+*  All rights reserved.
+*
+*  Redistribution and use in source and binary forms, with or without
+*  modification, are permitted provided that the following conditions
+*  are met:
+*
+*   * Redistributions of source code must retain the above copyright
+*     notice, this list of conditions and the following disclaimer.
+*   * Redistributions in binary form must reproduce the above
+*     copyright notice, this list of conditions and the following
+*     disclaimer in the documentation and/or other materials provided
+*     with the distribution.
+*   * Neither the name of University of Freiburg nor the names of its
+*     contributors may be used to endorse or promote products derived
+*     from this software without specific prior written permission.
+*
+*  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+*  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+*  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+*  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+*  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+*  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+*  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+*  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+*  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+*  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+*  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+*  POSSIBILITY OF SUCH DAMAGE.
+*
+* Author: Luigi Palmieri
+*********************************************************************/
 
 #ifndef SRL_EBAND_LOCAL_PLANNER_H_
 #define SRL_EBAND_LOCAL_PLANNER_H_
 
-//#define DEBUG_EBAND_ // uncomment to enable additional publishing, visualization and logouts for debug
+// #define DEBUG_EBAND_ // uncomment to enable additional publishing, visualization and logouts for debug
 
 #include <ros/ros.h>
 #include <ros/assert.h>
@@ -68,8 +108,19 @@
 
 // boost classes
 #include <boost/shared_ptr.hpp>
+#include <srl_eband_local_planner/srlEBandLocalPlannerConfig.h>
+
+
+#include <Eigen/Dense>
+typedef Eigen::VectorXd Vector;
+typedef Eigen::MatrixXd Matrix;
+typedef Eigen::Isometry3d Transform;
+
+
+#include <global_planner/planner_core.h>
 
 namespace srl_eband_local_planner{
+
 
   /**
    * @class EBandPlanner
@@ -149,9 +200,30 @@ namespace srl_eband_local_planner{
        */
       bool optimizeBand(std::vector<Bubble>& band);
 
+      /**
+      * @brief publishRepairedPlan, Publish final plan
+      * @return void
+      */
+      void setCostMap(costmap_2d::Costmap2DROS* costmap_ros);
+
+      /**
+       * @brief Repair the global plan
+       * @param global_plan The plan which shall be optimized
+       * @return True if the plan was set successfully
+       */
+      bool repairPlan(std::vector<geometry_msgs::PoseStamped> global_plan, std::vector<geometry_msgs::PoseStamped> &repaired_global_plan);
+
+
+      void callbackDynamicReconfigure(srl_eband_local_planner::srlEBandLocalPlannerConfig &config, uint32_t level);
+
+      int findClosestObstacle(geometry_msgs::PoseStamped pose, double &min_dist);
+
+      bool repairStripPlan(std::vector<geometry_msgs::PoseStamped> global_plan, std::vector<geometry_msgs::PoseStamped> &repaired_global_plan);
+
     private:
       // pointer to external objects (do NOT delete object)
       costmap_2d::Costmap2DROS* costmap_ros_; ///<@brief pointer to costmap
+      // dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig> *dr_server_;
 
       // parameters
       std::vector<double> acc_lim_; ///<@brief acceleration limits for translational and rotational motion
@@ -169,6 +241,9 @@ namespace srl_eband_local_planner{
       // pointer to locally created objects (delete - except for smart-ptrs:)
       base_local_planner::CostmapModel* world_model_; // local world model
       boost::shared_ptr<SrlEBandVisualization> eband_visual_; // pointer to visualization object
+      global_planner::GlobalPlanner globalPlannerNav;
+      std::vector<geometry_msgs::PoseStamped> obstacles_points_;
+      ros::Publisher pub_repaired_plan_;    // WARNING: TO PUBLISH A PATH
 
       // flags
       bool initialized_, visualization_;
@@ -356,6 +431,16 @@ namespace srl_eband_local_planner{
        * @return true if path was successfully converted - band did not break
        */
       bool convertBandToPlan(std::vector<geometry_msgs::PoseStamped>& plan, std::vector<Bubble> band);
+
+
+      /**
+      * @brief publishRepairedPlan, Publish final plan
+      * @return void
+      */
+      void publishRepairedPlan(std::vector<geometry_msgs::PoseStamped>& plan);
+
+
+
 
   };
 };

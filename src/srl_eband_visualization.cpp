@@ -1,41 +1,80 @@
 /*********************************************************************
- *
- * Software License Agreement (BSD License)
- *
- *  Copyright (c) 2010, Willow Garage, Inc.
- *  All rights reserved.
- *
- *  Redistribution and use in source and binary forms, with or without
- *  modification, are permitted provided that the following conditions
- *  are met:
- *
- *   * Redistributions of source code must retain the above copyright
- *     notice, this list of conditions and the following disclaimer.
- *   * Redistributions in binary form must reproduce the above
- *     copyright notice, this list of conditions and the following
- *     disclaimer in the documentation and/or other materials provided
- *     with the distribution.
- *   * Neither the name of Willow Garage, Inc. nor the names of its
- *     contributors may be used to endorse or promote products derived
- *     from this software without specific prior written permission.
- *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- *  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- *  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- *  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- *  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- *  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
- *  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
- *  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- *  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- *  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- *  POSSIBILITY OF SUCH DAMAGE.
- *
- * Author: Christian Connette, Luigi Palmieri
- *********************************************************************/
+*
+* Software License Agreement (BSD License)
+*
+*  Copyright (c) 2010, Willow Garage, Inc.
+*  All rights reserved.
+*
+*  Redistribution and use in source and binary forms, with or without
+*  modification, are permitted provided that the following conditions
+*  are met:
+*
+*   * Redistributions of source code must retain the above copyright
+*     notice, this list of conditions and the following disclaimer.
+*   * Redistributions in binary form must reproduce the above
+*     copyright notice, this list of conditions and the following
+*     disclaimer in the documentation and/or other materials provided
+*     with the distribution.
+*   * Neither the name of Willow Garage, Inc. nor the names of its
+*     contributors may be used to endorse or promote products derived
+*     from this software without specific prior written permission.
+*
+*  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+*  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+*  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+*  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+*  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+*  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+*  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+*  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+*  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+*  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+*  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+*  POSSIBILITY OF SUCH DAMAGE.
+*
+* Author: Christian Connette
+*********************************************************************/
 
-
+/*********************************************************************
+*  srl_eband_local_planner, local planner plugin for move_base based
+*  on the elastic band principle.
+*  License for the srl_eband_local_planner software developed
+*  during the EU FP7 Spencer Projet: new BSD License.
+*
+*  Software License Agreement (BSD License)
+*
+*  Copyright (c) 2015-2016, Luigi Palmieri, University of Freiburg
+*  All rights reserved.
+*
+*  Redistribution and use in source and binary forms, with or without
+*  modification, are permitted provided that the following conditions
+*  are met:
+*
+*   * Redistributions of source code must retain the above copyright
+*     notice, this list of conditions and the following disclaimer.
+*   * Redistributions in binary form must reproduce the above
+*     copyright notice, this list of conditions and the following
+*     disclaimer in the documentation and/or other materials provided
+*     with the distribution.
+*   * Neither the name of University of Freiburg nor the names of its
+*     contributors may be used to endorse or promote products derived
+*     from this software without specific prior written permission.
+*
+*  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+*  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+*  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+*  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+*  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+*  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+*  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+*  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+*  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+*  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+*  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+*  POSSIBILITY OF SUCH DAMAGE.
+*
+* Author: Luigi Palmieri
+*********************************************************************/
 #include <srl_eband_local_planner/srl_eband_visualization.h>
 
 
@@ -67,6 +106,7 @@ namespace srl_eband_local_planner{
       // although we want to publish MarkerArrays we have to advertise Marker topic first -> rviz searchs relative to this
       bubble_pub_ = pn.advertise<visualization_msgs::MarkerArray>("eband_visualization_array", 1);
 
+      repaired_path_= pn.advertise<visualization_msgs::Marker>("repaired_path_eband_visualization_array", 1);
       // copy adress of costmap and Transform Listener (handed over from move_base) -> to get robot shape
       costmap_ros_ = costmap_ros;
 
@@ -76,6 +116,58 @@ namespace srl_eband_local_planner{
     {
       ROS_WARN("Trying to initialize already initialized visualization, doing nothing.");
     }
+  }
+
+
+  void SrlEBandVisualization::publishRepairedPath(std::vector<geometry_msgs::PoseStamped> path)
+  {
+
+    // check if visualization was initialized
+    if(!initialized_)
+    {
+      ROS_ERROR("Visualization not yet initialized, please call initialize() before using visualization");
+      return;
+    }
+
+    visualization_msgs::Marker path_marker_;
+
+
+    path_marker_.header.frame_id = "odom";
+    path_marker_.header.stamp = ros::Time();
+    path_marker_.ns = "srl_eband_local_planner";
+    path_marker_.id = 1;
+
+    path_marker_.type = visualization_msgs::Marker::POINTS;
+    path_marker_.color.a = 1;
+    path_marker_.color.r = 0.0;
+    path_marker_.color.g = 0.0;
+    path_marker_.color.b = 1.0;
+
+    path_marker_.scale.x = 0.1;
+    path_marker_.scale.y = 0.1;
+    path_marker_.scale.z = 0.1;
+
+
+    path_marker_.action = 0;  // add or modify
+
+    int npoints = path.size();
+    ROS_INFO("Publishing path of size %d", npoints);
+    for (int i=0; i<npoints; i++) {
+
+        geometry_msgs::PoseStamped pose = path.at(i);
+        geometry_msgs::Point p;
+        p.x = pose.pose.position.x;
+        p.y = pose.pose.position.y;
+        p.z = 0.5;
+
+        path_marker_.points.push_back(p);
+
+    }
+
+
+    repaired_path_.publish(path_marker_);
+
+
   }
 
 
