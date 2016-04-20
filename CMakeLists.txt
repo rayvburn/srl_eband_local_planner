@@ -1,10 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(srl_eband_local_planner)
-<<<<<<< HEAD
-set(CMAKE_BUILD_TYPE Debug)
-find_package(catkin REQUIRED
-  COMPONENTS
-=======
 
 # Adding definitions
 MESSAGE(STATUS "Compiling with maximum optimization, will only work on Core i7 processors! (-mavx -march=corei7-avx -msse4.2 -O3 -funroll-loops -fomit-frame-pointer -ftree-vectorize ...)")
@@ -45,46 +40,32 @@ find_package(catkin REQUIRED
   COMPONENTS
     spencer_control_msgs
     std_msgs
->>>>>>> 580a2acb0ad687c10786bf2dc4669b6a598773da
     base_local_planner
     cmake_modules
     control_toolbox
     costmap_2d
     geometry_msgs
-<<<<<<< HEAD
-=======
     sensor_msgs
->>>>>>> 580a2acb0ad687c10786bf2dc4669b6a598773da
     nav_core
     nav_msgs
     pluginlib
     roscpp
     tf
     tf_conversions
-<<<<<<< HEAD
-=======
     dynamic_reconfigure
 		global_planner
 		cmake_modules
     message_generation
->>>>>>> 580a2acb0ad687c10786bf2dc4669b6a598773da
 )
 
 find_package(Eigen REQUIRED)
 include_directories(
   include
-<<<<<<< HEAD
-=======
 	cfg
->>>>>>> 580a2acb0ad687c10786bf2dc4669b6a598773da
   ${Eigen_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
 )
 
-<<<<<<< HEAD
-catkin_package(
-  CATKIN_DEPENDS
-=======
 generate_dynamic_reconfigure_options(
   cfg/srl_eband_plannerRos.cfg
 )
@@ -107,19 +88,10 @@ catkin_package(
     spencer_tracking_msgs
     spencer_control_msgs
     std_msgs
->>>>>>> 580a2acb0ad687c10786bf2dc4669b6a598773da
     base_local_planner
     control_toolbox
     costmap_2d
     geometry_msgs
-<<<<<<< HEAD
-    nav_core
-    nav_msgs
-    pluginlib
-    roscpp
-    tf
-    tf_conversions
-=======
     sensor_msgs
     nav_core
     nav_msgs
@@ -131,13 +103,10 @@ catkin_package(
 		global_planner
 		cmake_modules
     message_runtime
->>>>>>> 580a2acb0ad687c10786bf2dc4669b6a598773da
   INCLUDE_DIRS include
   LIBRARIES srl_eband_local_planner
 )
 
-<<<<<<< HEAD
-=======
 
 
 if(NOT CMAKE_BUILD_TYPE MATCHES Debug)
@@ -148,7 +117,6 @@ add_definitions(-DROSCONSOLE_MIN_SEVERITY=ROSCONSOLE_SEVERITY_DEBUG)
 endif()
 
 
->>>>>>> 580a2acb0ad687c10786bf2dc4669b6a598773da
 # build the library
 add_library(srl_eband_local_planner
   src/srl_eband_local_planner_ros.cpp
@@ -156,10 +124,6 @@ add_library(srl_eband_local_planner
   src/conversions_and_types.cpp
   src/srl_eband_visualization.cpp
   src/srl_eband_trajectory_controller.cpp
-<<<<<<< HEAD
-)
-
-=======
 	src/context_cost_function.cpp
   src/costmap_layers_dyn_rec_handler.cpp
   src/check_points_on_path.cpp
@@ -167,7 +131,6 @@ add_library(srl_eband_local_planner
 
 # add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_gencfg)
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
->>>>>>> 580a2acb0ad687c10786bf2dc4669b6a598773da
 target_link_libraries(srl_eband_local_planner ${catkin_LIBRARIES})
 
 install(

@@ -25,9 +25,6 @@
   <build_depend>roscpp</build_depend>
   <build_depend>tf</build_depend>
   <build_depend>tf_conversions</build_depend>
-<<<<<<< HEAD
-
-=======
   <build_depend>dynamic_reconfigure</build_depend>
   <build_depend>global_planner</build_depend>
   <build_depend>cmake_modules</build_depend>
@@ -46,7 +43,6 @@
   <run_depend>cmake_modules</run_depend>
   <run_depend>global_planner</run_depend>
   <run_depend>dynamic_reconfigure</run_depend>
->>>>>>> 580a2acb0ad687c10786bf2dc4669b6a598773da
   <run_depend>base_local_planner</run_depend>
   <run_depend>control_toolbox</run_depend>
   <run_depend>costmap_2d</run_depend>
