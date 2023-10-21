@@ -601,8 +601,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
 
       // instantiate local variables
       //std::vector<geometry_msgs::PoseStamped> local_plan;
-      tf::Stamped<tf::Pose> global_pose;
-      geometry_msgs::PoseStamped global_pose_msg;
+      geometry_msgs::PoseStamped global_pose;
       std::vector<geometry_msgs::PoseStamped> tmp_plan;
 
       // get curent robot position
@@ -614,8 +613,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       }
 
       // convert robot pose to frame in plan and set position in band at which to append
-      tf::poseStampedTFToMsg(global_pose, global_pose_msg);
-      tmp_plan.assign(1, global_pose_msg);
+      tmp_plan.assign(1, global_pose);
       srl_eband_local_planner::AddAtPosition add_frames_at = add_front;
 
       // set it to elastic band and let eband connect it
