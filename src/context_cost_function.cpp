@@ -45,6 +45,9 @@
 #define HUMAN_RADIUS 0.28 // meters
 
 #include <srl_eband_local_planner/context_cost_function.h>
+#include <tf2/convert.h>
+#include <tf2/utils.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 namespace hanp_local_planner
 {
@@ -52,7 +55,7 @@ namespace hanp_local_planner
     ContextCostFunction::ContextCostFunction() {}
     ContextCostFunction::~ContextCostFunction() {}
 
-    void ContextCostFunction::initialize(std::string global_frame, tf::TransformListener* tf)
+    void ContextCostFunction::initialize(std::string global_frame, tf2_ros::Buffer* tf)
     {
         ros::NodeHandle private_nh("~/");
         predict_humans_client_ = private_nh.serviceClient<hanp_prediction::HumanPosePredict>(PREDICT_SERVICE_NAME);
@@ -290,7 +293,7 @@ namespace hanp_local_planner
                 ROS_DEBUG_NAMED("context_cost_function", "rx=%f, ry=%f, hx=%f, hy=%f, d_p=%f, a_p=%f",
                     rx, ry, future_human_pose.pose.pose.position.x, future_human_pose.pose.pose.position.y, d_p, a_p);
                 alpha = fabs(angles::shortest_angular_distance(rtheta,
-                    angles::normalize_angle_positive(tf::getYaw(future_human_pose.pose.pose.orientation)) - M_PI));
+                    angles::normalize_angle_positive(tf2::getYaw(future_human_pose.pose.pose.orientation)) - M_PI));
                 // ROS_DEBUG_NAMED("context_cost_function", "rtheta=%f, h_inv_theta=%f, alpha=%f",
                 // rtheta, angles::normalize_angle_positive(future_human_pose.pose2d.theta) - M_PI, alpha);
 
@@ -350,33 +353,25 @@ namespace hanp_local_planner
             hanp_prediction::PredictedPoses transformed_human;
 
             //transform human pose in global frame
-            int res;
             try
             {
-                std::string error_msg;
-                res = tf_->waitForTransform(global_frame_, frame_id,
-                    ros::Time(0), ros::Duration(0.5), ros::Duration(0.01), &error_msg);
-                tf::StampedTransform humans_to_global_transform;
-                tf_->lookupTransform(global_frame_, frame_id, ros::Time(0), humans_to_global_transform);
+                geometry_msgs::TransformStamped humans_to_global_transform;
+                humans_to_global_transform = tf_->lookupTransform(global_frame_, frame_id, ros::Time(0));
 
                 for(auto predicted_pose : predicted_human.poses)
                 {
                     // transform position
                     geometry_msgs::Pose transformed_pose;
-                    tf::Pose human_pose(
-                        tf::Quaternion(
-                            predicted_pose.pose.pose.orientation.x,
-                            predicted_pose.pose.pose.orientation.y,
-                            predicted_pose.pose.pose.orientation.z,
-                            predicted_pose.pose.pose.orientation.w
-                        ),
-                        tf::Vector3(
-                            predicted_pose.pose.pose.position.x,
-                            predicted_pose.pose.pose.position.y,
-                            predicted_pose.pose.pose.position.z
-                        )
-                    );
-                    tf::poseTFToMsg(humans_to_global_transform * human_pose, transformed_pose);
+                    geometry_msgs::Pose human_pose;
+                    human_pose.position.x = predicted_pose.pose.pose.position.x;
+                    human_pose.position.y = predicted_pose.pose.pose.position.y;
+                    human_pose.position.z = predicted_pose.pose.pose.position.z;
+                    human_pose.orientation.x = predicted_pose.pose.pose.orientation.x;
+                    human_pose.orientation.y = predicted_pose.pose.pose.orientation.y;
+                    human_pose.orientation.z = predicted_pose.pose.pose.orientation.z;
+                    human_pose.orientation.w = predicted_pose.pose.pose.orientation.w;
+
+                    tf2::doTransform(human_pose, transformed_pose, humans_to_global_transform);
 
                     geometry_msgs::PoseWithCovarianceStamped transformed_pose_wcov;
                     transformed_pose_wcov.pose.pose = transformed_pose;
@@ -397,7 +392,7 @@ namespace hanp_local_planner
                         global_frame_.c_str(),
                         transformed_pose.position.x,
                         transformed_pose.position.y,
-                        tf::getYaw(transformed_human.poses.back().pose.pose.orientation)
+                        tf2::getYaw(transformed_human.poses.back().pose.pose.orientation)
                     );
                 }
 
@@ -406,35 +401,41 @@ namespace hanp_local_planner
 
                 // NOTE: in the original implementation, the velocity is kept in the base coordinate system!
                 //
-                // // transform the velocity - simply rotate the vector
-                // auto vel_transform = tf::Pose(
-                //     humans_to_global_transform.getRotation(),
-                //     tf::Vector3(0.0, 0.0, 0.0)
+                // transform the velocity - simply rotate the vector
+                // geometry_msgs::TransformStamped vel_transform;
+                // vel_transform = humans_to_global_transform;
+                // vel_transform.transform.translation.x = 0.0;
+                // vel_transform.transform.translation.y = 0.0;
+                // vel_transform.transform.translation.z = 0.0;
+
+                // geometry_msgs::Vector3 vel_linear;
+                // vel_linear.x = predicted_human.start_velocity.twist.linear.x;
+                // vel_linear.y = predicted_human.start_velocity.twist.linear.y;
+                // vel_linear.z = predicted_human.start_velocity.twist.linear.z;
+
+                // geometry_msgs::Vector3 vel_linear_transformed;
+                // tf2::doTransform(vel_linear, vel_linear_transformed, vel_transform);
+
+                // geometry_msgs::Quaternion vel_angular = tf2::toMsg(
+                //     tf2::Quaternion(predicted_human.start_velocity.twist.angular.z, 0.0, 0.0)
                 // );
-                // tf::Pose vel(
-                //     tf::createQuaternionFromYaw(predicted_human.start_velocity.twist.angular.z),
-                //     tf::Vector3(
-                //         predicted_human.start_velocity.twist.linear.x,
-                //         predicted_human.start_velocity.twist.linear.y,
-                //         predicted_human.start_velocity.twist.linear.z
-                //     )
-                // );
-                // geometry_msgs::Pose vel_transformed;
-                // tf::poseTFToMsg(vel_transform * vel, vel_transformed);
-                // transformed_human.start_velocity.twist.linear.x = vel_transformed.position.x;
-                // transformed_human.start_velocity.twist.linear.y = vel_transformed.position.y;
-                // transformed_human.start_velocity.twist.linear.z = vel_transformed.position.z;
+                // geometry_msgs::Quaternion vel_angular_transformed;
+                // tf2::doTransform(vel_angular, vel_angular_transformed, vel_transform);
+
+                // transformed_human.start_velocity.twist.linear.x = vel_linear_transformed.x;
+                // transformed_human.start_velocity.twist.linear.y = vel_linear_transformed.y;
+                // transformed_human.start_velocity.twist.linear.z = vel_linear_transformed.z;
                 // transformed_human.start_velocity.twist.angular.x = 0.0;
                 // transformed_human.start_velocity.twist.angular.y = 0.0;
-                // transformed_human.start_velocity.twist.angular.z = tf::getYaw(vel_transformed.orientation);
+                // transformed_human.start_velocity.twist.angular.z = tf2::getYaw(vel_angular_transformed);
             }
-            catch(const tf::ExtrapolationException &ex)
+            catch(const tf2::ExtrapolationException &ex)
             {
                 ROS_DEBUG("context_cost_function: cannot extrapolate transform");
             }
-            catch(const tf::TransformException &ex)
+            catch(const tf2::TransformException &ex)
             {
-                ROS_ERROR("context_cost_function: transform failure (%d): %s", res, ex.what());
+                ROS_ERROR("context_cost_function: transform failure %s", ex.what());
             }
 
             return transformed_human;

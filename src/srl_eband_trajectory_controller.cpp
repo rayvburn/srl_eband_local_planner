@@ -76,13 +76,17 @@
 *********************************************************************/
 
 #include <srl_eband_local_planner/srl_eband_trajectory_controller.h>
-#include <tf/transform_datatypes.h>
 
+#include <tf/tf.h> // legacy data processing methods
+
+#include <tf2/convert.h>
+#include <tf2/utils.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 /// these are platform dependent, we could set them as params
 #define TRANS_VEL_ABS_LIMIT  1.0
 #define ROT_VEL_ABS_LIMIT 1.57;
-tf::TransformListener* tf_listener;
+tf2_ros::Buffer* tf_buffer;
 
 namespace srl_eband_local_planner{
 
@@ -93,7 +97,7 @@ using std::max;
 SrlEBandTrajectoryCtrl::SrlEBandTrajectoryCtrl() : costmap_ros_(NULL), initialized_(false), band_set_(false), visualization_(false) {}
 
 
-SrlEBandTrajectoryCtrl::SrlEBandTrajectoryCtrl(std::string name, costmap_2d::Costmap2DROS* costmap_ros, tf::TransformListener* tf)
+SrlEBandTrajectoryCtrl::SrlEBandTrajectoryCtrl(std::string name, costmap_2d::Costmap2DROS* costmap_ros, tf2_ros::Buffer* tf)
   : costmap_ros_(NULL), initialized_(false), band_set_(false), visualization_(false)
 {
   controller_frequency_ = 6.66;
@@ -122,7 +126,7 @@ SrlEBandTrajectoryCtrl::SrlEBandTrajectoryCtrl(std::string name, costmap_2d::Cos
   // initialize planner
   initialize(name, costmap_ros, tf);
   compute_curvature_properties_ = new CurvatureProperties();
-  // tf_listener = new tf::TransformListener();
+  // tf_buffer = new tf2_ros::Buffer();
   // Initialize pid object (note we'll be further clamping its output)
   pid_.initPid(1, 0, 0, 10, -10);
 
@@ -248,7 +252,7 @@ void SrlEBandTrajectoryCtrl::callbackDynamicReconfigure(srl_eband_local_planner:
 /// =======================================================================================
 /// initialize(std::string name, costmap_2d::Costmap2DROS* costmap_ros)
 /// =======================================================================================
-void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DROS* costmap_ros, tf::TransformListener* tf)
+void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DROS* costmap_ros, tf2_ros::Buffer* tf)
 {
 
   // check if trajectory controller is already initialized
@@ -325,7 +329,7 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     // copy adress of costmap and Transform Listener (handed over from move_base)
     costmap_ros_ = costmap_ros;
 
-    tf_listener = tf;
+    tf_buffer = tf;
 
     planner_frame_ = "odom";
     // init velocity for interpolation
@@ -354,7 +358,7 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     path_id_ = 0;
     limit_vel_based_on_curvature_ = true;
     context_cost_function_ =  new hanp_local_planner::ContextCostFunction();
-    context_cost_function_->initialize(planner_frame_, tf_listener);
+    context_cost_function_->initialize(planner_frame_, tf_buffer);
     circumscribed_radius_ = getCircumscribedRadius(*costmap_ros_);
     check_laser_on_path_ = new check_points_on_path::CheckPointsOnPath();
     max_vel_collision_warning_ = 0.4;
@@ -705,35 +709,27 @@ double angularDiff (const geometry_msgs::Twist& heading,
 geometry_msgs::PoseStamped SrlEBandTrajectoryCtrl::transformPose(geometry_msgs::PoseStamped init_pose){
 
     geometry_msgs::PoseStamped res;
-    tf::StampedTransform transform;
+    geometry_msgs::TransformStamped transform;
     try{
         // will transform data in the goal_frame into the planner_frame_
-      //  tf_listener->waitForTransform( planner_frame_, init_pose.header.frame_id, ros::Time::now(), ros::Duration(0.40));
-       tf_listener->lookupTransform(  planner_frame_, init_pose.header.frame_id, ros::Time(0), transform);
-
+        transform = tf_buffer->lookupTransform(planner_frame_, init_pose.header.frame_id, ros::Time(0));
     }
-    catch(tf::TransformException e){
+    catch(tf2::TransformException e){
 
         ROS_ERROR("Failed to transform the given pose in the Eband Planner frame_id, planner frame %s, inititpose frame %s, reason %s", planner_frame_.c_str(), init_pose.header.frame_id.c_str(), e.what());
     }
 
-    tf::Pose source;
-    tf::Quaternion q(init_pose.pose.orientation.x, init_pose.pose.orientation.y, init_pose.pose.orientation.z, init_pose.pose.orientation.w);
-    q = q.normalize();
-
-    // tf::Quaternion q = tf::createQuaternionFromRPY(0,0,tf::getYaw(init_pose.pose.orientation));
-    tf::Matrix3x3 base(q);
-    source.setOrigin(tf::Vector3(init_pose.pose.position.x, init_pose.pose.position.y, 0));
-    source.setBasis(base);
+    geometry_msgs::PoseStamped source;
+    source.pose.position.x = init_pose.pose.position.x;
+    source.pose.position.y = init_pose.pose.position.y;
+    source.pose.position.z = init_pose.pose.position.z;
+    source.pose.orientation.x = init_pose.pose.orientation.x;
+    source.pose.orientation.y = init_pose.pose.orientation.y;
+    source.pose.orientation.z = init_pose.pose.orientation.z;
+    source.pose.orientation.w = init_pose.pose.orientation.w;
 
     /// Apply the proper transform
-    tf::Pose result = transform*source;
-    res.pose.position.x = result.getOrigin().x() ;
-    res.pose.position.y = result.getOrigin().y() ;
-    res.pose.position.z = result.getOrigin().z() ;
-    tf:: Quaternion qo = result.getRotation();
-    qo.normalize();
-    tf::quaternionTFToMsg(qo, res.pose.orientation);
+    tf2::doTransform(source, res, transform);
     res.header = init_pose.header;
     res.header.frame_id = planner_frame_;
 
@@ -963,23 +959,20 @@ bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, b
 
     // Look for current robot pose
     ROS_DEBUG("Looking for current robot pose");
-    tf::StampedTransform transform;
+    geometry_msgs::TransformStamped transform;
     try{
-        tf_listener->lookupTransform(planner_frame_, robot_frame_, ros::Time(0), transform);
+        transform = tf_buffer->lookupTransform(planner_frame_, robot_frame_, ros::Time(0));
     }
-    catch (tf::TransformException ex){
+    catch (tf2::TransformException ex){
             ROS_ERROR("%s",ex.what());
             ros::Duration(1.0).sleep();
             return false;
     }
 
-    x_curr_ = transform.getOrigin().x();
-    y_curr_ = transform.getOrigin().y();
-    ROS_DEBUG("Looking for current robot pose, getting quaternion");
-    tf::Quaternion qcurr = transform.getRotation();
-    qcurr.normalize();
+    x_curr_ = transform.transform.translation.x;
+    y_curr_ = transform.transform.translation.y;
     ROS_DEBUG("Looking for current robot pose, getting yaw angle");
-    theta_curr_ = set_angle_to_range(tf::getYaw(qcurr), 0);
+    theta_curr_ = set_angle_to_range(tf2::getYaw(transform.transform.rotation), 0);
 
     // x_curr_ = elastic_band_.at(0).center.pose.position.x;
     // y_curr_ = elastic_band_.at(0).center.pose.position.y;
@@ -1366,21 +1359,19 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
   robot_cmd.angular.z = 0.0;
   ROS_DEBUG("Human Legibility on");
   // get current robot pose
-  tf::StampedTransform transform_flipped;
+  geometry_msgs::TransformStamped transform_flipped;
   try{
-      tf_listener->lookupTransform("odom", robot_frame_ , ros::Time(0), transform_flipped);
+      transform_flipped = tf_buffer->lookupTransform("odom", robot_frame_ , ros::Time(0));
   }
-  catch (tf::TransformException ex){
+  catch (tf2::TransformException ex){
           ROS_ERROR("%s",ex.what());
           ros::Duration(1.0).sleep();
           return false;
   }
 
-  double x_rob = transform_flipped.getOrigin().x();
-  double y_rob = transform_flipped.getOrigin().y();
-  tf::Quaternion qcurr_flipped = transform_flipped.getRotation();
-  qcurr_flipped.normalize();
-  double robot_yaw = tf::getYaw(qcurr_flipped);
+  double x_rob = transform_flipped.transform.translation.x;
+  double y_rob = transform_flipped.transform.translation.y;
+  double robot_yaw = tf2::getYaw(transform_flipped.transform.rotation);
   bool command_provided = false;
 
   // check if plugin initialized

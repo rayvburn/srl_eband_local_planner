@@ -101,7 +101,7 @@
 #include <nav_msgs/Path.h>
 // geometry
 #include <angles/angles.h>
-#include <tf/tf.h>
+#include <tf2_ros/buffer.h>
 
 
 #include <srl_eband_local_planner/srlEBandLocalPlannerConfig.h>
@@ -134,7 +134,7 @@ namespace srl_eband_local_planner{
        * @param name The name to give this instance of the elastic band local planner
        * @param costmap The cost map to use for assigning costs to trajectories
        */
-      SrlEBandTrajectoryCtrl(std::string name, costmap_2d::Costmap2DROS* costmap_ros, tf::TransformListener* tf);
+      SrlEBandTrajectoryCtrl(std::string name, costmap_2d::Costmap2DROS* costmap_ros, tf2_ros::Buffer* tf);
 
       /**
        * @brief  Destructor
@@ -146,7 +146,7 @@ namespace srl_eband_local_planner{
        * @param name The name to give this instance of the trajectory planner
        * @param costmap The cost map to use for assigning costs to trajectories
        */
-      void initialize(std::string name, costmap_2d::Costmap2DROS* costmap_ros, tf::TransformListener* tf);
+      void initialize(std::string name, costmap_2d::Costmap2DROS* costmap_ros, tf2_ros::Buffer* tf);
 
       /**
        * @brief passes a reference to the eband visualization object which can be used to visualize the band optimization

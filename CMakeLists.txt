@@ -53,6 +53,8 @@ find_package(catkin REQUIRED
     roscpp
     tf
     tf_conversions
+    tf2
+    tf2_ros
     dynamic_reconfigure
 		global_planner
 		cmake_modules
@@ -101,6 +103,8 @@ catkin_package(
     roscpp
     tf
     tf_conversions
+    tf2
+    tf2_ros
 		global_planner
 		cmake_modules
     message_runtime

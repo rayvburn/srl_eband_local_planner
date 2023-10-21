@@ -34,7 +34,7 @@
 #include <base_local_planner/trajectory_cost_function.h>
 #include <base_local_planner/trajectory.h>
 
-#include <tf/transform_listener.h>
+#include <tf2_ros/buffer.h>
 #include <angles/angles.h>
 #include <hanp_prediction/HumanPosePredict.h>
 
@@ -50,7 +50,7 @@ namespace hanp_local_planner {
         ContextCostFunction();
         ~ContextCostFunction();
 
-        void initialize(std::string global_frame, tf::TransformListener* tf);
+        void initialize(std::string global_frame, tf2_ros::Buffer* tf);
         bool prepare();
         double scoreTrajectory(base_local_planner::Trajectory &traj);
         void generateTrajectory(double x, double y, double theta, double v, double w, base_local_planner::Trajectory& traj, bool dir, bool not_pub);
@@ -62,7 +62,7 @@ namespace hanp_local_planner {
     private:
         ros::ServiceClient predict_humans_client_;
 
-        tf::TransformListener* tf_;
+        tf2_ros::Buffer* tf_;
 
         double alpha_max_, d_low_, d_high_, beta_, min_scale_;
         double predict_time_;

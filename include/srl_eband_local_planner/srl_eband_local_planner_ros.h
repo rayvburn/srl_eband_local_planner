@@ -107,8 +107,8 @@
 
 // transforms
 #include <angles/angles.h>
-#include <tf/tf.h>
-#include <tf/transform_listener.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_ros/buffer.h>
 
 // costmap & geometry
 #include <costmap_2d/costmap_2d_ros.h>
@@ -138,10 +138,10 @@ namespace srl_eband_local_planner{
       /**
        * @brief Constructs the ros wrapper
        * @param name The name to give this instance of the elastic band local planner
-       * @param tf A pointer to a transform listener
+       * @param tf A pointer to a transform buffer
        * @param costmap The cost map to use for assigning costs to trajectories
        */
-      SrlEBandPlannerROS(std::string name, tf::TransformListener* tf,
+      SrlEBandPlannerROS(std::string name, tf2_ros::Buffer* tf,
           costmap_2d::Costmap2DROS* costmap_ros);
 
       /**
@@ -152,10 +152,10 @@ namespace srl_eband_local_planner{
       /**
        * @brief Initializes the ros wrapper
        * @param name The name to give this instance of the trajectory planner
-       * @param tf A pointer to a transform listener
+       * @param tf A pointer to a transform buffer
        * @param costmap The cost map to use for assigning costs to trajectories
        */
-      void initialize(std::string name, tf::TransformListener* tf,
+      void initialize(std::string name, tf2_ros::Buffer* tf,
           costmap_2d::Costmap2DROS* costmap_ros);
 
       /**
@@ -211,7 +211,7 @@ namespace srl_eband_local_planner{
       costmap_2d::Costmap2DROS* costmap_only_static_;
       costmap_2d::Costmap2DROS* costmap_ros_initial_; ///<@brief pointer to costmap
 
-      tf::TransformListener* tf_; ///<@brief pointer to Transform Listener
+      tf2_ros::Buffer* tf_; ///<@brief pointer to Transform Buffer
 
       dynamic_reconfigure::Server<srl_eband_local_planner::srlEBandLocalPlannerConfig> *dr_server_;
       ros::ServiceServer service_enable_social_layer_;

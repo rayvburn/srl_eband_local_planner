@@ -83,6 +83,11 @@
 // abstract class from which our plugin inherits
 #include <nav_core/base_local_planner.h>
 
+#include <tf/tf.h> // legacy data processing methods
+
+#include <tf2/convert.h>
+#include <tf2/utils.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 // register this planner as a BaseGlobalPlanner plugin
 // (see http://www.ros.org/wiki/pluginlib/Tutorials/Writing%20and%20Using%20a%20Simple%20Plugin)
@@ -94,7 +99,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
     SrlEBandPlannerROS::SrlEBandPlannerROS() : costmap_ros_(NULL), tf_(NULL), initialized_(false) {}
 
 
-    SrlEBandPlannerROS::SrlEBandPlannerROS(std::string name, tf::TransformListener* tf, costmap_2d::Costmap2DROS* costmap_ros)
+    SrlEBandPlannerROS::SrlEBandPlannerROS(std::string name, tf2_ros::Buffer* tf, costmap_2d::Costmap2DROS* costmap_ros)
       : costmap_ros_(NULL), tf_(NULL), initialized_(false)
     {
       // initialize planner
@@ -113,7 +118,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
     SrlEBandPlannerROS::~SrlEBandPlannerROS() {}
 
 
-    void SrlEBandPlannerROS::initialize(std::string name, tf::TransformListener* tf, costmap_2d::Costmap2DROS* costmap_ros)
+    void SrlEBandPlannerROS::initialize(std::string name, tf2_ros::Buffer* tf, costmap_2d::Costmap2DROS* costmap_ros)
     {
       // check if the plugin is already initialized
       if(!initialized_)
@@ -127,7 +132,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         cnt_tracks_in_front_ = 0;
         time_hri_last_ = 0;
         waiting_time_hri_message_ = 5.0;
-        // copy adress of costmap and Transform Listener (handed over from move_base)
+        // copy adress of costmap and Transform Buffer (handed over from move_base)
         costmap_ros_ = costmap_ros;
         costmap_ros_initial_ = costmap_ros;
 
@@ -248,18 +253,18 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         double x_curr = 0;
         double y_curr = 0;
         double theta_curr = 0;
-        tf::StampedTransform transform;
+        geometry_msgs::TransformStamped transform;
         try{
-            tf_->lookupTransform("odom", "base_link_flipped", ros::Time(0.0), transform);
+            transform = tf_->lookupTransform("odom", "base_link_flipped", ros::Time(0.0));
         }
-        catch (tf::TransformException ex){
+        catch (tf2::TransformException ex){
                 ROS_ERROR("Didn't read robot pose via trasform listener in SrlEBandPlannerROS %s",ex.what());
                 ros::Duration(1.0).sleep();
                 return;
         }
-        x_curr = transform.getOrigin().x();
-        y_curr = transform.getOrigin().y();
-        theta_curr = tf::getYaw(transform.getRotation());
+        x_curr = transform.transform.translation.x;
+        y_curr = transform.transform.translation.y;
+        theta_curr = tf2::getYaw(transform.transform.rotation);
         if(dir_planning_ == -1){
             theta_curr = eband_trj_ctrl_->set_angle_to_range(M_PI+theta_curr,0);
         }
@@ -272,6 +277,18 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         double curr_or = 0;
         double vy = 0;
         double vx = 0;
+
+        // prepare transform for each track in the loop
+        geometry_msgs::TransformStamped transform_loop;
+        try{
+            transform_loop = tf_->lookupTransform("base_link_flipped", msg->header.frame_id, ros::Time(0.0));
+        }
+        catch (tf2::TransformException ex){
+                ROS_ERROR("Didn't transform track pose via trasform buffer in SrlEBandPlannerROS %s",ex.what());
+                ros::Duration(1.0).sleep();
+                return;
+        }
+
         for(size_t i=0; i < msg->tracks.size(); i++){
 
                 vy = msg->tracks[i].twist.twist.linear.y;
@@ -282,22 +299,15 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
                 track_pose_i.header.frame_id = msg->header.frame_id;
                 track_pose_i.pose = msg->tracks[i].pose.pose;
                 track_pose_i.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0,0,curr_or);
-                /// TODO: add try catch
-                try{
-                    tf_->transformPose("base_link_flipped", track_pose_i, human_pose_i);
-                }
-                catch (tf::TransformException ex){
-                        ROS_ERROR("Didn't transform track pose via trasform listener in SrlEBandPlannerROS %s",ex.what());
-                        ros::Duration(1.0).sleep();
-                        return;
-                }
+
+                tf2::doTransform(track_pose_i, human_pose_i, transform_loop);
 
                 /// People Tracks in the Robot Frame
                 agents_position.push_back(human_pose_i);
                 double x = human_pose_i.pose.position.x;
                 double y = human_pose_i.pose.position.y;
                 double dist_i = sqrt(x*x+y*y);
-                // double yaw_i = tf::getYaw(human_pose_i.pose.orientation);
+                // double yaw_i = tf2::getYaw(human_pose_i.pose.orientation);
                 double yaw_i = atan2(y,x);
                 ROS_DEBUG_NAMED("Eband_AllTracks", "Human id %d Dist %f, yaw_i %f",(int)msg->tracks[i].track_id, dist_i, yaw_i);
                 if( dist_i<min_alert_dist_tracks_
