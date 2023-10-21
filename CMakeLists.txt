@@ -38,7 +38,6 @@ endif()
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
 find_package(catkin REQUIRED
   COMPONENTS
-    spencer_control_msgs
     hanp_prediction
     std_msgs
     base_local_planner
@@ -88,7 +87,6 @@ catkin_package(
   CATKIN_DEPENDS
     spencer_tracking_msgs
     hanp_prediction
-    spencer_control_msgs
     std_msgs
     base_local_planner
     control_toolbox

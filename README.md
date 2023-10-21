@@ -16,7 +16,6 @@ but still supports the original holonomic drive controls.
 * Boost >= 1.46
 * C++11 compiler
 * spencer_tracking_msgs
-* spencer_control_msgs
 
 ## Installation
 

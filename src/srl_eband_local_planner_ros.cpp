@@ -84,7 +84,6 @@
 #include <nav_core/base_local_planner.h>
 
 
-using namespace spencer_control_msgs;
 // register this planner as a BaseGlobalPlanner plugin
 // (see http://www.ros.org/wiki/pluginlib/Tutorials/Writing%20and%20Using%20a%20Simple%20Plugin)
 // PLUGINLIB_DECLARE_CLASS(srl_eband_local_planner, SrlEBandPlannerROS, srl_eband_local_planner::SrlEBandPlannerROS, nav_core::BaseLocalPlanner)
@@ -158,8 +157,6 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         pub_hri_message_ = pn.advertise<std_msgs::String>("/spencer/ui/speech_synthesis/request",1);
 
         sub_current_measured_velocity_ = pn.subscribe("/spencer/control/measured_velocity", 5, &SrlEBandPlannerROS::readVelocityCB, this);
-        frontLaserCollisionStatus_listener_ = pn.subscribe("/spencer/control/collision/aggregated_front", 1, &SrlEBandPlannerROS::checkFrontLaserCollisionStatus, this);
-        rearLaserCollisionStatus_listener_  = pn.subscribe("/spencer/control/collision/aggregated_rear", 1, &SrlEBandPlannerROS::checkRearLaserCollisionStatus, this);
         sub_current_driving_direction_ = pn.subscribe("/spencer/nav/current_driving_direction", 1, &SrlEBandPlannerROS::SetDrivingDirection, this);
         sub_tracks_ = pn.subscribe("/spencer/perception/tracked_persons",1, &SrlEBandPlannerROS::callbackAllTracks,this);
         sub_trigger_hri_ = pn.subscribe("/spencer/navigation/trigger_human_interaction", 1, &SrlEBandPlannerROS::callbackTriggerHRI,this);
@@ -414,34 +411,6 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         dir_planning_=1*fabs(dir_planning_);
       }
       return;
-    }
-
-    /// ==================================================================================
-    /// checkFrontLaserCollisionStatus(const CollisionStatus& collisionStatus)
-    /// Method to set the global Goal
-    /// ==================================================================================
-    void SrlEBandPlannerROS::checkFrontLaserCollisionStatus(const CollisionStatus::ConstPtr& msg) {
-
-        collision_error_front_    = msg->collisionError;
-        //collision_error_front_    = msg->collisionError && (dir_planning_>0);
-        collision_warning_front_  = msg->collisionWarning;
-
-
-        return;
-
-    }
-
-    /// ==================================================================================
-    /// checkRearLaserCollisionStatus(const CollisionStatus& collisionStatus)
-    /// Method to set the global Goal
-    /// ==================================================================================
-    void SrlEBandPlannerROS::checkRearLaserCollisionStatus(const CollisionStatus::ConstPtr& msg){
-
-        collision_error_rear_   = msg->collisionError;
-        //collision_error_rear_   = msg->collisionError && (dir_planning_<0);
-        collision_warning_rear_  = msg->collisionWarning;
-        // ROS_DEBUG("Srl Global Planner checking collision status, Error: %d, Warning: %d", collision_error_, collision_warning_);
-        return;
     }
 
     /// ============================================================================

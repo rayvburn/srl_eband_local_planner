@@ -117,11 +117,9 @@
 #include <boost/bind.hpp>
 #include <boost/shared_ptr.hpp>
 #include <srl_eband_local_planner/srlEBandLocalPlannerConfig.h>
-#include <spencer_control_msgs/CollisionStatus.h>
 #include <spencer_tracking_msgs/TrackedPersons.h>
 
 #define EPS 0.01
-using namespace spencer_control_msgs;
 
 namespace srl_eband_local_planner{
 
@@ -189,13 +187,6 @@ namespace srl_eband_local_planner{
       */
       void SetDrivingDirection(const std_msgs::Bool::ConstPtr& msg);
 
-
-      void checkFrontLaserCollisionStatus(const CollisionStatus::ConstPtr& msg);
-
-
-      void checkRearLaserCollisionStatus(const CollisionStatus::ConstPtr& msg);
-
-
       void readVelocityCB(const geometry_msgs::TwistStamped::ConstPtr& msg);
 
 
@@ -238,8 +229,6 @@ namespace srl_eband_local_planner{
       ros::Subscriber odom_sub_; ///<@brief subscribes to the odometry topic in global namespace
       ros::Subscriber sub_current_driving_direction_;
       ros::Subscriber sub_current_measured_velocity_;
-      ros::Subscriber frontLaserCollisionStatus_listener_;
-      ros::Subscriber rearLaserCollisionStatus_listener_;
       ros::Subscriber sub_tracks_;
       ros::Subscriber sub_trigger_hri_;
 
