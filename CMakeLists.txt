@@ -38,6 +38,7 @@ endif()
 set(CMAKE_BUILD_TYPE RelWithDebInfo)
 find_package(catkin REQUIRED
   COMPONENTS
+    spencer_tracking_msgs
     hanp_prediction
     std_msgs
     base_local_planner
