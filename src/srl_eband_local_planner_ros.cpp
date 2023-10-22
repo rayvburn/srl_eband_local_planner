@@ -250,21 +250,15 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
     void SrlEBandPlannerROS::callbackAllTracks(const spencer_tracking_msgs::TrackedPersons::ConstPtr& msg){
 
         /// Read Robot pose
-        double x_curr = 0;
-        double y_curr = 0;
-        double theta_curr = 0;
-        geometry_msgs::TransformStamped transform;
-        try{
-            transform = tf_->lookupTransform("odom", "base_link_flipped", ros::Time(0.0));
+        geometry_msgs::PoseStamped robot_pose;
+        if (!costmap_ros_->getRobotPose(robot_pose)) {
+            ROS_ERROR("Didn't read robot pose via local costmap in SrlEBandPlannerROS");
+            return;
         }
-        catch (tf2::TransformException ex){
-                ROS_ERROR("Didn't read robot pose via trasform listener in SrlEBandPlannerROS %s",ex.what());
-                ros::Duration(1.0).sleep();
-                return;
-        }
-        x_curr = transform.transform.translation.x;
-        y_curr = transform.transform.translation.y;
-        theta_curr = tf2::getYaw(transform.transform.rotation);
+
+        double x_curr = robot_pose.pose.position.x;
+        double y_curr = robot_pose.pose.position.y;
+        double theta_curr = tf2::getYaw(robot_pose.pose.orientation);
         if(dir_planning_ == -1){
             theta_curr = eband_trj_ctrl_->set_angle_to_range(M_PI+theta_curr,0);
         }
@@ -278,10 +272,14 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         double vy = 0;
         double vx = 0;
 
-        // prepare transform for each track in the loop
-        geometry_msgs::TransformStamped transform_loop;
+        // prepare transform for each track in the loop -> convert people tracks to the robot base frame
+        geometry_msgs::TransformStamped transform_tracks_to_rbase;
         try{
-            transform_loop = tf_->lookupTransform("base_link_flipped", msg->header.frame_id, ros::Time(0.0));
+            transform_tracks_to_rbase = tf_->lookupTransform(
+              costmap_ros_->getBaseFrameID(),
+              msg->header.frame_id,
+              ros::Time(0.0)
+            );
         }
         catch (tf2::TransformException ex){
                 ROS_ERROR("Didn't transform track pose via trasform buffer in SrlEBandPlannerROS %s",ex.what());
@@ -300,7 +298,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
                 track_pose_i.pose = msg->tracks[i].pose.pose;
                 track_pose_i.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(0,0,curr_or);
 
-                tf2::doTransform(track_pose_i, human_pose_i, transform_loop);
+                tf2::doTransform(track_pose_i, human_pose_i, transform_tracks_to_rbase);
 
                 /// People Tracks in the Robot Frame
                 agents_position.push_back(human_pose_i);

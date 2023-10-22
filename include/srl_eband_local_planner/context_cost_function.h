@@ -67,6 +67,7 @@ namespace hanp_local_planner {
         double alpha_max_, d_low_, d_high_, beta_, min_scale_;
         double predict_time_;
         std::string global_frame_;
+        std::string predicted_humans_frame_id_;
 
         double getCompatabilty(double d_p, double alpha);
 

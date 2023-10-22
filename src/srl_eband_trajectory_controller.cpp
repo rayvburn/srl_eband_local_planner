@@ -232,11 +232,12 @@ void SrlEBandTrajectoryCtrl::callbackDynamicReconfigure(srl_eband_local_planner:
   limit_vel_collision_warnings_ = config.limit_vel_based_collision_warnings;
   max_vel_collision_warning_ = config.max_vel_collision_warning;
 
-  if(backward_motion_on_){
-    robot_frame_ = "base_link_flipped";
-  }else{
-    robot_frame_ = "base_link";
-  }
+  // DELETED: avoid any hacks for a specific robot - this must be generic
+  // if(backward_motion_on_){
+  //   robot_frame_ = "base_link_flipped";
+  // }else{
+  //   robot_frame_ = "base_link";
+  // }
 
 
   ROS_DEBUG("New max_vel_lin %f", max_vel_lin_);
@@ -331,7 +332,8 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
 
     tf_buffer = tf;
 
-    planner_frame_ = "odom";
+    robot_frame_ = costmap_ros_->getBaseFrameID();
+    planner_frame_ = costmap_ros_->getGlobalFrameID();
     // init velocity for interpolation
     last_vel_.linear.x = 0.0;
     last_vel_.linear.y = 0.0;
@@ -1359,19 +1361,14 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
   robot_cmd.angular.z = 0.0;
   ROS_DEBUG("Human Legibility on");
   // get current robot pose
-  geometry_msgs::TransformStamped transform_flipped;
-  try{
-      transform_flipped = tf_buffer->lookupTransform("odom", robot_frame_ , ros::Time(0));
+  geometry_msgs::PoseStamped robot_pose;
+  if (!costmap_ros_->getRobotPose(robot_pose)) {
+      ROS_ERROR("Didn't read robot pose via local costmap in SrlEBandTrajectoryCtrl");
+      return false;
   }
-  catch (tf2::TransformException ex){
-          ROS_ERROR("%s",ex.what());
-          ros::Duration(1.0).sleep();
-          return false;
-  }
-
-  double x_rob = transform_flipped.transform.translation.x;
-  double y_rob = transform_flipped.transform.translation.y;
-  double robot_yaw = tf2::getYaw(transform_flipped.transform.rotation);
+  double x_rob = robot_pose.pose.position.x;
+  double y_rob = robot_pose.pose.position.y;
+  double robot_yaw = tf2::getYaw(robot_pose.pose.orientation);
   bool command_provided = false;
 
   // check if plugin initialized

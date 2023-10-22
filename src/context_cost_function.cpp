@@ -59,6 +59,8 @@ namespace hanp_local_planner
     {
         ros::NodeHandle private_nh("~/");
         predict_humans_client_ = private_nh.serviceClient<hanp_prediction::HumanPosePredict>(PREDICT_SERVICE_NAME);
+        // no way to obtain the actual frame_id of poses predicted by the service above, see transformHumanPoses
+        private_nh.param<std::string>("predicted_humans_frame_id", predicted_humans_frame_id_, "odom");
 
         // initialize variables
         global_frame_ = global_frame;
@@ -197,12 +199,11 @@ namespace hanp_local_planner
         ROS_DEBUG_NAMED("context_cost_function", "received %d predicted humans",
             predict_srv.response.predicted_humans_poses.size());
 
-        // transform humans
+        // transform humans to the global_frame_
         std::vector<hanp_prediction::PredictedPoses> transformed_humans;
         for (auto human : predict_srv.response.predicted_humans_poses)
         {
-            // FIXME: hard-coded name of the source frame
-            transformed_humans.push_back(transformHumanPoses(human, "odom"));
+            transformed_humans.push_back(transformHumanPoses(human, predicted_humans_frame_id_));
         }
         ROS_DEBUG_NAMED("context_cost_function", "transformied %d humans to %s frame",
             transformed_humans.size(), global_frame_.c_str());
