@@ -218,8 +218,11 @@ namespace srl_eband_local_planner{
       /**
        * @brief callbackLaserScanReceived, Used to read laser scans and limit the current maximum velocity
        */
-      void callbackLaserScanReceived(const sensor_msgs::LaserScan& laserscan);
-
+      void callbackLaserScanReceived(
+        const sensor_msgs::LaserScanConstPtr& laserscan,
+        int& num_points_near_robot_bwd_on,
+        int& num_points_near_robot_bwd_off
+      );
 
       void callbackDrivinDirection(const std_msgs::Bool::ConstPtr& msg);
 
@@ -351,8 +354,6 @@ namespace srl_eband_local_planner{
       double old_angular_velocity_;
       bool limit_acc_;
 
-      std::string front_laser_frame_;
-      std::string rear_laser_frame_;
       std::string rear_laser_topic_;
       std::string front_laser_topic_;
       std::string robot_frame_;

@@ -83,6 +83,8 @@
 #include <tf2/utils.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
+#include <functional>
+
 /// these are platform dependent, we could set them as params
 #define TRANS_VEL_ABS_LIMIT  1.0
 #define ROT_VEL_ABS_LIMIT 1.57;
@@ -105,8 +107,6 @@ SrlEBandTrajectoryCtrl::SrlEBandTrajectoryCtrl(std::string name, costmap_2d::Cos
   warning_robot_radius_ = 2.0;
   max_path_length_to_check_points_ = 4.0;
   min_vel_limited_curvature_ = 0.35;
-  front_laser_frame_ = "laser_front_link";
-  rear_laser_frame_ = "laser_rear_link";
   num_points_front_robot_ = 0;
   num_points_rear_robot_ = 0;
   front_laser_topic_ = "/spencer/sensors/laser_front/echo0";
@@ -308,8 +308,6 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     node_private.param("lookahed", lookahed_, 2);
     node_private.getParam("/move_base_node/controller_frequency", this->controller_frequency_);
     node_private.getParam("limit_vel_based_laser_points_density", this->limit_vel_based_laser_points_density_);
-    node_private.getParam("front_laser_frame", this->front_laser_frame_);
-    node_private.getParam("rear_laser_frame", this->rear_laser_frame_);
     node_private.getParam("warning_robot_radius", this->warning_robot_radius_);
     node_private.getParam("front_laser_topic", this->front_laser_topic_);
     node_private.getParam("rear_laser_topic", this->rear_laser_topic_);
@@ -320,8 +318,29 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     node_private.getParam("start_to_stop_goal",start_to_stop_goal_);
     /// define subscribers
     sub_current_driving_direction_ = node_private.subscribe("/spencer/nav/current_driving_direction", 1, &SrlEBandTrajectoryCtrl::callbackDrivinDirection, this);
-    sub_front_laser_ =  node_private.subscribe(front_laser_topic_, 1, &SrlEBandTrajectoryCtrl::callbackLaserScanReceived, this);
-    sub_rear_laser_  =  node_private.subscribe(rear_laser_topic_, 1, &SrlEBandTrajectoryCtrl::callbackLaserScanReceived, this);
+    sub_front_laser_ =  node_private.subscribe<sensor_msgs::LaserScan>(
+      front_laser_topic_,
+      1,
+      std::bind(
+        &SrlEBandTrajectoryCtrl::callbackLaserScanReceived,
+        this,
+        std::placeholders::_1,
+        std::ref(num_points_rear_robot_),
+        std::ref(num_points_front_robot_)
+      )
+    );
+    sub_rear_laser_  = node_private.subscribe<sensor_msgs::LaserScan>(
+      rear_laser_topic_,
+      1,
+      std::bind(
+        &SrlEBandTrajectoryCtrl::callbackLaserScanReceived,
+        this,
+        std::placeholders::_1,
+        std::ref(num_points_front_robot_),
+        std::ref(num_points_rear_robot_)
+      )
+    );
+
     pub_local_path_ = node_private.advertise<nav_msgs::Path>(local_path_topic_, 1);
 
     // Ctrl_rate, k_prop, max_vel_lin, max_vel_th, tolerance_trans, tolerance_rot, min_in_place_vel_th
@@ -456,45 +475,26 @@ void SrlEBandTrajectoryCtrl::publishLocalPlan(base_local_planner::Trajectory loc
 /// =======================================================================================
 /// callbackLaserScanReceived(const sensor_msgs::LaserScan& laserscan), read laser scan
 /// =======================================================================================
-void SrlEBandTrajectoryCtrl::callbackLaserScanReceived(const sensor_msgs::LaserScan& laserscan){
-
-  bool front_laser = false;
-  bool rear_laser = false;
-
-  if(strcmp(front_laser_frame_.c_str(), laserscan.header.frame_id.c_str() ) == 0){
-    front_laser = true;
-    if(backward_motion_on_)
-      {
-        num_points_rear_robot_ = 0;
-      }
-    else
-      {
-        num_points_front_robot_ = 0;
-      }
-  }
-
-  if(strcmp(rear_laser_frame_.c_str(), laserscan.header.frame_id.c_str() ) == 0){
-    rear_laser = true;
-    if(backward_motion_on_)
-        {
-          num_points_front_robot_ = 0;
-        }
-    else
-        {
-          num_points_rear_robot_ = 0;
-        }
+void SrlEBandTrajectoryCtrl::callbackLaserScanReceived(
+  const sensor_msgs::LaserScanConstPtr& laserscan,
+  int& num_points_near_robot_bwd_on,
+  int& num_points_near_robot_bwd_off
+) {
+  if(backward_motion_on_) {
+    num_points_near_robot_bwd_on = 0;
+  } else {
+    num_points_near_robot_bwd_off = 0;
   }
 
   laser_points_on_band_ = false;
 
-  for(size_t p_i = 0; p_i < laserscan.ranges.size(); p_i++) {
+  for(size_t p_i = 0; p_i < laserscan->ranges.size(); p_i++) {
 
-      const double phi = laserscan.angle_min + laserscan.angle_increment * p_i;
-      const double rho = laserscan.ranges[p_i];
+      const double phi = laserscan->angle_min + laserscan->angle_increment * p_i;
+      const double rho = laserscan->ranges[p_i];
 
       // Only process points with valid range data
-      const bool is_in_range = rho > laserscan.range_min && rho < laserscan.range_max;
-
+      const bool is_in_range = rho > laserscan->range_min && rho < laserscan->range_max;
 
       if(is_in_range)
       {
@@ -504,7 +504,7 @@ void SrlEBandTrajectoryCtrl::callbackLaserScanReceived(const sensor_msgs::LaserS
           double x = rho*cos(phi);
           double y = rho*sin(phi);
           geometry_msgs::PoseStamped p;
-          p.header.frame_id = laserscan.header.frame_id;
+          p.header.frame_id = laserscan->header.frame_id;
           p.pose.position.x =  x;
           p.pose.position.y =  y;
           geometry_msgs::PoseStamped pt = transformPose(p);
@@ -523,36 +523,23 @@ void SrlEBandTrajectoryCtrl::callbackLaserScanReceived(const sensor_msgs::LaserS
           // Check if inside warning radius
           if(rho < warning_robot_radius_ && fabs(phi) < warning_robot_angle_ ){
               //ROS_DEBUG("Value of Phi %f and Rho %f", phi, rho);
-              if(front_laser)
-                {
-                  if(backward_motion_on_)
-                    {
-                      num_points_rear_robot_++;
-                    }
-                  else
-                    {
-                      num_points_front_robot_++;
-                    }
-                }
-                else if(rear_laser){
-
-                    if(backward_motion_on_)
-                        {
-                          num_points_front_robot_++;
-                        }
-                    else
-                        {
-                          num_points_rear_robot_++;
-                        }
-
-                }
+              if(backward_motion_on_)
+              {
+                num_points_near_robot_bwd_on++;
+              }
+              else
+              {
+                num_points_near_robot_bwd_off++;
+              }
           }
-
       }
   }
-
-  ROS_DEBUG("Eband_collision_error","Points in front of the robot %d, points rear side of the robot %d",num_points_front_robot_, num_points_rear_robot_ );
-  return ;
+  ROS_DEBUG(
+    "Eband_collision_error",
+    "Points near the robot %d",
+    backward_motion_on_ ? num_points_near_robot_bwd_on : num_points_near_robot_bwd_off
+  );
+  return;
 }
 
 
