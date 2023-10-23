@@ -201,7 +201,7 @@ namespace srl_eband_local_planner{
       /**
        * @brief transformPose, trasform pose to the planner frame
        */
-      geometry_msgs::PoseStamped transformPose(geometry_msgs::PoseStamped init_pose);
+      geometry_msgs::PoseStamped transformPose(const geometry_msgs::PoseStamped& init_pose);
 
       /**
        * @brief checkAccelerationBounds, set the twist so to respect acceleration bounds

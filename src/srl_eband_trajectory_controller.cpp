@@ -695,7 +695,11 @@ double angularDiff (const geometry_msgs::Twist& heading,
 /// Srl_local_planner::transformPose(geometry_msgs::PoseStamped init_pose)
 /// Transforms the init_pose in the planner_frame
 /// ==================================================================================
-geometry_msgs::PoseStamped SrlEBandTrajectoryCtrl::transformPose(geometry_msgs::PoseStamped init_pose){
+geometry_msgs::PoseStamped SrlEBandTrajectoryCtrl::transformPose(const geometry_msgs::PoseStamped& init_pose){
+
+    if (planner_frame_ == init_pose.header.frame_id) {
+      return init_pose;
+    }
 
     geometry_msgs::PoseStamped res;
     geometry_msgs::TransformStamped transform;
@@ -705,7 +709,12 @@ geometry_msgs::PoseStamped SrlEBandTrajectoryCtrl::transformPose(geometry_msgs::
     }
     catch(tf2::TransformException e){
 
-        ROS_ERROR("Failed to transform the given pose in the Eband Planner frame_id, planner frame %s, inititpose frame %s, reason %s", planner_frame_.c_str(), init_pose.header.frame_id.c_str(), e.what());
+        ROS_ERROR(
+          "Failed to transform the given pose (expressed in `%s`) into the Eband Planner frame (`%s`), reason %s",
+          init_pose.header.frame_id.c_str(),
+          planner_frame_.c_str(),
+          e.what()
+        );
     }
 
     geometry_msgs::PoseStamped source;
