@@ -24,3 +24,14 @@ Clone the package into you catkin workspace
 - `git clone https://github.com/palmieri/srl_eband_local_planner.git`
 - `cd ../`
 - `catkin_make` or `catkin build`
+
+## Limitations
+
+This fork provides compatibility of the original planner with the ROS `melodic` (not tested with `noetic`). However, it only upgrades code sections that were completely outdated and threw errors during a compilation. The planner still needs a major refactor, i.a., code sections using legacy `tf` conversions are left as they were.
+
+The planner was not tested with the provided `.launch` files after modifications (custom ones were prepared). Also, note that some `SPENCER` project packages are missing on GitHub.
+It is crucial to set the parameters of classes from `behavior_layers` package as the default ones will immediately produce assertion/topic naming errors (ill-formed component).
+
+This planner currently works only with the [`SPENCER`](https://github.com/spencer-project/spencer_people_tracking) perception stack.
+
+Switching to the standard [`people_msgs`](http://wiki.ros.org/people_msgs) (possibly with the handy [converting tools](https://github.com/rayvburn/people_msgs_utils)) would allow testing with different perception systems.
