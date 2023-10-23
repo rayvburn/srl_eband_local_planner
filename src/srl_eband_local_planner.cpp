@@ -203,9 +203,6 @@ namespace srl_eband_local_planner{
 
     // get a pointer to the underlying costmap
     costmap_ = costmap_ros_->getCostmap();
-
-    // NOTE: call copied from SrlEBandPlanner::initialize
-    globalPlannerNav.initialize("globlalPlannerNav_repairing", costmap_ros_);
   }
 
   /// ==================================================================================
