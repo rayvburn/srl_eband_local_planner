@@ -150,6 +150,11 @@ namespace srl_eband_local_planner{
       ~SrlEBandPlannerROS();
 
       /**
+       * @brief Initializes basic class members
+       */
+      void initialize();
+
+      /**
        * @brief Initializes the ros wrapper
        * @param name The name to give this instance of the trajectory planner
        * @param tf A pointer to a transform buffer

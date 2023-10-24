@@ -90,20 +90,30 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 // register this planner as a BaseGlobalPlanner plugin
-// (see http://www.ros.org/wiki/pluginlib/Tutorials/Writing%20and%20Using%20a%20Simple%20Plugin)
-// PLUGINLIB_DECLARE_CLASS(srl_eband_local_planner, SrlEBandPlannerROS, srl_eband_local_planner::SrlEBandPlannerROS, nav_core::BaseLocalPlanner)
 PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::BaseLocalPlanner);
 
   namespace srl_eband_local_planner{
 
-    SrlEBandPlannerROS::SrlEBandPlannerROS() : costmap_ros_(NULL), tf_(NULL), initialized_(false) {}
+    SrlEBandPlannerROS::SrlEBandPlannerROS() : costmap_ros_(NULL), tf_(NULL), initialized_(false)
+    {
+      initialize();
+    }
 
 
     SrlEBandPlannerROS::SrlEBandPlannerROS(std::string name, tf2_ros::Buffer* tf, costmap_2d::Costmap2DROS* costmap_ros)
       : costmap_ros_(NULL), tf_(NULL), initialized_(false)
     {
-      // initialize planner
+      initialize();
+      initialize(name, tf, costmap_ros);
+    }
 
+
+    SrlEBandPlannerROS::~SrlEBandPlannerROS() {}
+
+
+    void SrlEBandPlannerROS::initialize()
+    {
+      // initialize planner
       number_tentative_setting_band_ = 10;
       collision_error_rear_ = false;
       collision_error_front_ = false;
@@ -111,11 +121,7 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       collision_warning_front_ = false;
       check_costmap_layers_ = true;
       dir_planning_ = -1; // starting Backward
-      initialize(name, tf, costmap_ros);
     }
-
-
-    SrlEBandPlannerROS::~SrlEBandPlannerROS() {}
 
 
     void SrlEBandPlannerROS::initialize(std::string name, tf2_ros::Buffer* tf, costmap_2d::Costmap2DROS* costmap_ros)
