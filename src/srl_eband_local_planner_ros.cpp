@@ -594,7 +594,13 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       // check if robot is in still position
       if( (collision_error_front_ || collision_error_rear_) && robot_still_position_){
 
-        ROS_ERROR("The local planner can't go on for a collision error, unstuck Behaviour");
+        ROS_ERROR(
+          "The local planner can't go on for a collision error (front %s, rear %s, robot is still %s). "
+          "Expecting the recovery behaviour now.",
+          collision_error_front_ ? "T" : "F",
+          collision_error_rear_ ? "T" : "F",
+          robot_still_position_ ? "T" : "F"
+        );
         return false;
 
       }
