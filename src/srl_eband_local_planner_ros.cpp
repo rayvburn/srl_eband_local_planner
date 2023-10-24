@@ -167,7 +167,6 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
 
         pub_hri_message_ = pn.advertise<std_msgs::String>("/spencer/ui/speech_synthesis/request",1);
 
-        sub_current_driving_direction_ = pn.subscribe("/spencer/nav/current_driving_direction", 1, &SrlEBandPlannerROS::SetDrivingDirection, this);
         sub_tracks_ = pn.subscribe("/spencer/perception/tracked_persons",1, &SrlEBandPlannerROS::callbackAllTracks,this);
         sub_trigger_hri_ = pn.subscribe("/spencer/navigation/trigger_human_interaction", 1, &SrlEBandPlannerROS::callbackTriggerHRI,this);
 
@@ -407,24 +406,6 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         return true;
     }
 
-
-    /// ========================================================================================
-    /// SetDrivingDirection
-    /// Set The correct Driving Direction
-    /// ========================================================================================
-    void SrlEBandPlannerROS::SetDrivingDirection(const std_msgs::Bool::ConstPtr& msg){
-      bool forward = false;
-      forward = msg->data;
-      if(!forward){
-        ROS_DEBUG_THROTTLE(5, "Backward direction set");
-        dir_planning_=-1*fabs(dir_planning_);
-      }else
-      {
-        ROS_DEBUG_THROTTLE(5, "Forward  direction set");
-        dir_planning_=1*fabs(dir_planning_);
-      }
-      return;
-    }
 
     /// ============================================================================
     // Previously readVelocityCB, i.e., a callback to read the current robot velocity
@@ -800,6 +781,18 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
         std::hypot(msg->twist.twist.linear.x, msg->twist.twist.linear.y),
         msg->twist.twist.angular.z
       );
+
+      // sets the correct Driving Direction - replaces legacy `SetDrivingDirection`
+      bool backwards =  msg->twist.twist.linear.x < -0.01; // small epsilon
+      if(backwards) {
+        ROS_DEBUG_THROTTLE(5, "Backward direction set");
+        dir_planning_=-1;
+      }
+      else
+      {
+        ROS_DEBUG_THROTTLE(5, "Forward  direction set");
+        dir_planning_=1;
+      }
     }
 
 

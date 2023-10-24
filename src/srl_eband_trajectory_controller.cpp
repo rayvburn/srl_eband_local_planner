@@ -324,7 +324,6 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     }
 
     /// define subscribers
-    sub_current_driving_direction_ = node_private.subscribe("/spencer/nav/current_driving_direction", 1, &SrlEBandTrajectoryCtrl::callbackDrivinDirection, this);
     sub_front_laser_ =  node_private.subscribe<sensor_msgs::LaserScan>(
       front_laser_topic_,
       1,
@@ -431,21 +430,6 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
   }
 
 
-
-/// =======================================================================================
-/// callbackDrivinDirection
-/// =======================================================================================
-void SrlEBandTrajectoryCtrl::callbackDrivinDirection(const std_msgs::Bool::ConstPtr& msg)
-{
-    // False is backward_motion_on_
-    bool d =  msg->data;
-    if(!d){
-      backward_motion_on_ = true;
-    }
-    else {
-      backward_motion_on_ = false;
-    }
-}
 
 /// =======================================================================================
 /// publishLocalPlan
@@ -674,6 +658,16 @@ bool SrlEBandTrajectoryCtrl::setOdometry(const nav_msgs::Odometry& odometry)
   tf::Quaternion quat(odometry.pose.pose.orientation.x, odometry.pose.pose.orientation.y, odometry.pose.pose.orientation.z, odometry.pose.pose.orientation.w);
   quat = quat.normalize();
   theta_curr_ = set_angle_to_range(tf::getYaw(quat),0);
+
+  // twist is expressed in the base coordinate system
+  // the conditional was introduced to replace the legacy `callbackDrivinDirection`
+  if (odometry.twist.twist.linear.x < -0.01) // small epsilon
+  {
+      backward_motion_on_ = true;
+  }
+  else {
+      backward_motion_on_ = false;
+  }
 
   ROS_DEBUG("Odometry set correctly");
   return true;

@@ -186,12 +186,6 @@ namespace srl_eband_local_planner{
 
       void callbackDynamicReconfigure(srl_eband_local_planner::srlEBandLocalPlannerConfig &config, uint32_t level);
 
-      /**
-      * @brief  Set Driving Direction
-      * @return void
-      */
-      void SetDrivingDirection(const std_msgs::Bool::ConstPtr& msg);
-
       void calculateRobotStillness(double vx, double vw);
 
       bool enableSocialLayer(srl_eband_local_planner::EnableSocialLayer::Request  &req,
@@ -231,7 +225,6 @@ namespace srl_eband_local_planner{
       ros::Publisher l_plan_pub_; ///<@brief publishes prediction for local commands
       ros::Publisher pub_hri_message_;
       ros::Subscriber odom_sub_; ///<@brief subscribes to the odometry topic in global namespace
-      ros::Subscriber sub_current_driving_direction_;
       ros::Subscriber sub_tracks_;
       ros::Subscriber sub_trigger_hri_;
 
