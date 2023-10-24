@@ -306,7 +306,6 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     node_private.param("B", b_, 0.15);
     node_private.param("smoothed_eband", smoothed_eband_, true);
     node_private.param("lookahed", lookahed_, 2);
-    node_private.getParam("/move_base_node/controller_frequency", this->controller_frequency_);
     node_private.getParam("limit_vel_based_laser_points_density", this->limit_vel_based_laser_points_density_);
     node_private.getParam("warning_robot_radius", this->warning_robot_radius_);
     node_private.getParam("front_laser_topic", this->front_laser_topic_);
@@ -316,6 +315,14 @@ void SrlEBandTrajectoryCtrl::initialize(std::string name, costmap_2d::Costmap2DR
     node_private.getParam("max_translational_vel_due_to_laser_points_density", this->max_translational_vel_due_to_laser_points_density_);
     node_private.getParam("trans_vel_goal", trans_vel_goal_);
     node_private.getParam("start_to_stop_goal",start_to_stop_goal_);
+    // controller parameters
+    std::string controller_freq_param;
+    if (node_private.searchParam("controller_frequency", controller_freq_param)) {
+      node_private.getParam(controller_freq_param, this->controller_frequency_);
+    } else {
+      ROS_ERROR("Could not find a parameter matching `controller_frequency` pattern");
+    }
+
     /// define subscribers
     sub_current_driving_direction_ = node_private.subscribe("/spencer/nav/current_driving_direction", 1, &SrlEBandTrajectoryCtrl::callbackDrivinDirection, this);
     sub_front_laser_ =  node_private.subscribe<sensor_msgs::LaserScan>(
@@ -776,7 +783,6 @@ double SrlEBandTrajectoryCtrl::set_angle_to_range(double alpha, double min)
 /// getTwistUnicycle(geometry_msgs::Twist& twist_cmd, bool& goal_reached)
 /// =======================================================================================
 bool SrlEBandTrajectoryCtrl::getTwistUnicycle(geometry_msgs::Twist& twist_cmd, bool& goal_reached){
-  nh_.getParam("/move_base_node/controller_frequency", this->controller_frequency_);
 
   goal_reached = false;
   int size_band = elastic_band_.size();
@@ -1349,7 +1355,6 @@ bool SrlEBandTrajectoryCtrl::limitVelocityCurvature(double &curr_max_vel){
 bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twist_cmd, bool& goal_reached) {
 
   goal_reached = false;
-  nh_.getParam("/move_base_node/controller_frequency", this->controller_frequency_);
   int size_band = elastic_band_.size();
 
   geometry_msgs::Twist robot_cmd, bubble_diff;
