@@ -192,8 +192,7 @@ namespace srl_eband_local_planner{
       */
       void SetDrivingDirection(const std_msgs::Bool::ConstPtr& msg);
 
-      void readVelocityCB(const geometry_msgs::TwistStamped::ConstPtr& msg);
-
+      void calculateRobotStillness(double vx, double vw);
 
       bool enableSocialLayer(srl_eband_local_planner::EnableSocialLayer::Request  &req,
                srl_eband_local_planner::EnableSocialLayer::Response &res);
@@ -233,7 +232,6 @@ namespace srl_eband_local_planner{
       ros::Publisher pub_hri_message_;
       ros::Subscriber odom_sub_; ///<@brief subscribes to the odometry topic in global namespace
       ros::Subscriber sub_current_driving_direction_;
-      ros::Subscriber sub_current_measured_velocity_;
       ros::Subscriber sub_tracks_;
       ros::Subscriber sub_trigger_hri_;
 

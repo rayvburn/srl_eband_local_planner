@@ -167,7 +167,6 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
 
         pub_hri_message_ = pn.advertise<std_msgs::String>("/spencer/ui/speech_synthesis/request",1);
 
-        sub_current_measured_velocity_ = pn.subscribe("/spencer/control/measured_velocity", 5, &SrlEBandPlannerROS::readVelocityCB, this);
         sub_current_driving_direction_ = pn.subscribe("/spencer/nav/current_driving_direction", 1, &SrlEBandPlannerROS::SetDrivingDirection, this);
         sub_tracks_ = pn.subscribe("/spencer/perception/tracked_persons",1, &SrlEBandPlannerROS::callbackAllTracks,this);
         sub_trigger_hri_ = pn.subscribe("/spencer/navigation/trigger_human_interaction", 1, &SrlEBandPlannerROS::callbackTriggerHRI,this);
@@ -428,20 +427,15 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
     }
 
     /// ============================================================================
-    // readVelocityCB, call back to read the current robot velocity
-    /// ============================================================================
-    void SrlEBandPlannerROS::readVelocityCB(const geometry_msgs::TwistStamped::ConstPtr& msg){
-
-      double v = msg->twist.linear.x;
-      double w = msg->twist.angular.z;
+    // Previously readVelocityCB, i.e., a callback to read the current robot velocity
+    void SrlEBandPlannerROS::calculateRobotStillness(double vx, double vw) {
       // ROS_DEBUG_NAMED("Simple Head Behaviour", "Reading vel (%f, %f)", v, w);
-      if(fabs(v)<EPS && fabs(w)<EPS){
+      if(fabs(vx)<EPS && fabs(vw)<EPS){
         robot_still_position_ = true;
         // ROS_DEBUG_NAMED("Simple Head Behaviour","Robot still vel (%f, %f)", v, w);
       }else{
         robot_still_position_ = false;
       }
-      return;
     }
 
     /// =======================================================================================
@@ -795,6 +789,11 @@ PLUGINLIB_EXPORT_CLASS(srl_eband_local_planner::SrlEBandPlannerROS, nav_core::Ba
       base_odom_.twist.twist.linear.x = msg->twist.twist.linear.x;
       base_odom_.twist.twist.linear.y = msg->twist.twist.linear.y;
       base_odom_.twist.twist.angular.z = msg->twist.twist.angular.z;
+
+      calculateRobotStillness(
+        std::hypot(msg->twist.twist.linear.x, msg->twist.twist.linear.y),
+        msg->twist.twist.angular.z
+      );
     }
 
 
