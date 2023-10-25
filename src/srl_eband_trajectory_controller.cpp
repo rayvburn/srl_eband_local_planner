@@ -1460,6 +1460,7 @@ bool SrlEBandTrajectoryCtrl::getTwistDifferentialDrive(geometry_msgs::Twist& twi
             return true;
       }
       command_provided = true;
+      twist_cmd = robot_cmd;
         return true;
     }
   }
