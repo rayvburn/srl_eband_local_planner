@@ -256,12 +256,16 @@ namespace hanp_local_planner
         for(auto transformed_human : transformed_humans)
         {
             unsigned int point_index = 0;
-            do
-            {
+            // keep calculating, until we find incompatible situation or end of path
+            for (
+                ;
+                (point_index < point_index_max) && (point_index < transformed_human.poses.size());
+                point_index++
+            ) {
                 // get the future pose of the robot
                 traj.getPoint(point_index, rx, ry, rtheta);
-                auto future_human_pose = transformed_human.poses[point_index]; //TODO: check index validity
-                ROS_DEBUG_NAMED("context_cost_function", "selecting futhre human pose %d of %d",
+                auto future_human_pose = transformed_human.poses[point_index];
+                ROS_DEBUG_NAMED("context_cost_function", "selecting futhre human pose %u of %lu",
                     point_index, transformed_human.poses.size());
 
                 // discard human behind the robot
@@ -304,9 +308,11 @@ namespace hanp_local_planner
                 ROS_DEBUG_NAMED("context_cost_function", "calculated compatibility %f"
                     " at d_p=%f, alpha=%f point: x=%f, y=%f (%d of %d)", compatibility,
                     d_p, alpha, rx, ry, point_index, traj.getPointsSize()-1);
+
+                if (compatibility <= 0.0) {
+                    break;
+                }
             }
-            // keep calculating, until we find incompatible situation or end of path
-            while((++point_index < point_index_max) && (compatibility > 0.0));
             point_index_max = point_index;
 
             // ROS_DEBUG_NAMED("context_cost_function", "calculated maximum point index %d"
