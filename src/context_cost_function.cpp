@@ -196,7 +196,7 @@ namespace hanp_local_planner
             return 1.0;
         }
 
-        ROS_DEBUG_NAMED("context_cost_function", "received %d predicted humans",
+        ROS_DEBUG_NAMED("context_cost_function", "received %lu predicted humans",
             predict_srv.response.predicted_humans_poses.size());
 
         // transform humans to the global_frame_
@@ -205,7 +205,7 @@ namespace hanp_local_planner
         {
             transformed_humans.push_back(transformHumanPoses(human, predicted_humans_frame_id_));
         }
-        ROS_DEBUG_NAMED("context_cost_function", "transformied %d humans to %s frame",
+        ROS_DEBUG_NAMED("context_cost_function", "transformied %lu humans to %s frame",
             transformed_humans.size(), global_frame_.c_str());
 
         if(publish_predicted_human_markers_)
@@ -284,7 +284,7 @@ namespace hanp_local_planner
 
                 if (a_p < beta_)
                 {
-                    ROS_DEBUG_NAMED("context_cost_function", "discarding human (%d)"
+                    ROS_DEBUG_NAMED("context_cost_function", "discarding human (%lu)"
                         " future pose (%u) for compatibility calculations",
                         transformed_human.id, point_index);
                     continue;
